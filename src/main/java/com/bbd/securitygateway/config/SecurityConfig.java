@@ -2,11 +2,13 @@ package com.bbd.securitygateway.config;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.SessionManagementConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.oauth2.client.oidc.web.logout.OidcClientInitiatedLogoutSuccessHandler;
+import org.springframework.security.oauth2.client.registration.ClientRegistrationRepository;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.logout.LogoutSuccessHandler;
 import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
@@ -35,8 +37,9 @@ public class SecurityConfig {
     // 웹
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http,
+                                                   ClientRegistrationRepository clientRegistrationRepository,
                                                    CorsConfigurationSource corsConfigurationSource
-                                                   ) throws Exception {
+    ) throws Exception {
 
         CookieCsrfTokenRepository csrfTokenRepository =
                 CookieCsrfTokenRepository.withHttpOnlyFalse();
@@ -90,7 +93,7 @@ public class SecurityConfig {
                         // 브라우저의 Gateway 세션 쿠키(JSESSIONID)를 삭제한다.
                         .deleteCookies("JSESSIONID")
                         // Gateway 로그아웃 성공 후 프론트 로그인 페이지로 이동한다.
-                        .logoutSuccessUrl("http://localhost:5173/login")
+                        .logoutSuccessHandler(oidcLogoutSuccessHandler(clientRegistrationRepository))
                 )
 
 
@@ -122,58 +125,82 @@ public class SecurityConfig {
     }
 
 
-        // cors 설정
-        @Bean
-        public CorsConfigurationSource corsConfigurationSource() {
+    // Gateway 로그아웃 성공 후 실행될 OIDC 로그아웃 핸들러를 생성한다.
+    // 일반 logoutSuccessUrl은 Gateway 세션만 종료한 뒤 프론트로 이동하지만,
+    // OidcClientInitiatedLogoutSuccessHandler는 Keycloak의 end_session_endpoint로
+    // 브라우저를 redirect시켜 Keycloak SSO 세션까지 종료하도록 한다.
+    private LogoutSuccessHandler oidcLogoutSuccessHandler(
+            // Spring Security가 등록한 OAuth2/OIDC Client 정보 저장소
+            // 여기에는 yml에 설정한 Keycloak client-id, issuer-uri 등이 들어 있다.
+            // 이 정보를 이용해 Keycloak의 end_session_endpoint를 찾는다.
+            ClientRegistrationRepository clientRegistrationRepository
+    ) {
+        // OIDC RP-Initiated Logout을 처리하는 Spring Security 제공 핸들러
+        // 로그아웃 성공 시 현재 사용자의 ID Token과 ClientRegistration 정보를 이용해서
+        // Keycloak 로그아웃 URL을 생성한다.
+        OidcClientInitiatedLogoutSuccessHandler handler =
+                new OidcClientInitiatedLogoutSuccessHandler(clientRegistrationRepository);
 
-            // CORS 정책 객체를 생성한다.
-            CorsConfiguration config = new CorsConfiguration();
+        // Keycloak 로그아웃이 끝난 뒤 최종적으로 돌아올 프론트엔드 주소를 지정한다.
+        // 이 값은 Keycloak 로그아웃 URL의 post_logout_redirect_uri 파라미터로 사용된다.
+        handler.setPostLogoutRedirectUri("http://localhost:5173/login");
 
+        // Spring Security logout 설정의 logoutSuccessHandler에 넘길 핸들러 반환
+        return handler;
+    }
 
-            // 요청을 허용할 프론트엔드 Origin 지정
-            // Cross-Origin 요청에서는 쿠키를 기본적으로 안 보내지만
-            // JSESSIONID 쿠키를 포함한 요청을 허용해야 하므로 allowCredentials(true)를 사용한다.
-            // 이 경우 "*" 전체 허용은 사용할 수 없고, 정확한 Origin을 지정해야 한다.
-            config.setAllowedOrigins(List.of(
-                    "http://localhost:5173"
-            ));
+    // cors 설정
+    @Bean
+    public CorsConfigurationSource corsConfigurationSource() {
 
-
-            // 허용할 HTTP 메서드 지정
-            // OPTIONS는 브라우저가 실제 요청 전에 보내는 Preflight 요청 처리를 위해 필요
-            config.setAllowedMethods(List.of(
-                    "GET",
-                    "POST",
-                    "PUT",
-                    "PATCH",
-                    "DELETE",
-                    "OPTIONS"
-            ));
-
-            // 프론트엔드 요청에서 허용할 요청 헤더 지정
-            // Authorization : Bearer Token 전달 시 사용
-            // Content-Type : application/json 요청 시 사용
-            // X-Requested-With : Ajax 요청 식별용으로 사용될 수 있음
-            // X-XSRF-TOKEN : CSRF 토큰을 헤더로 전달할 때 사용
-            config.setAllowedHeaders(List.of(
-                    "Authorization",
-                    "Content-Type",
-                    "X-Requested-With",
-                    "X-XSRF-TOKEN"
-            ));
-
-            // 쿠키, Authorization 헤더 등 인증 정보가 포함된 요청 허용
-            // JSESSIONID 기반 세션 인증을 사용하려면 true 필요
-            config.setAllowCredentials(true);
+        // CORS 정책 객체를 생성한다.
+        CorsConfiguration config = new CorsConfiguration();
 
 
-            // URL 패턴별 CORS 정책을 등록할 수 있는 Source 객체 생성
-            UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
+        // 요청을 허용할 프론트엔드 Origin 지정
+        // Cross-Origin 요청에서는 쿠키를 기본적으로 안 보내지만
+        // JSESSIONID 쿠키를 포함한 요청을 허용해야 하므로 allowCredentials(true)를 사용한다.
+        // 이 경우 "*" 전체 허용은 사용할 수 없고, 정확한 Origin을 지정해야 한다.
+        config.setAllowedOrigins(List.of(
+                "http://localhost:5173"
+        ));
 
-            // 모든 요청 경로에 위 CORS 정책 적용
-            source.registerCorsConfiguration("/**", config);
 
-            // Spring Security의 CORS 처리에서 사용할 설정 객체 반환
-            return source;
-        }
+        // 허용할 HTTP 메서드 지정
+        // OPTIONS는 브라우저가 실제 요청 전에 보내는 Preflight 요청 처리를 위해 필요
+        config.setAllowedMethods(List.of(
+                "GET",
+                "POST",
+                "PUT",
+                "PATCH",
+                "DELETE",
+                "OPTIONS"
+        ));
+
+        // 프론트엔드 요청에서 허용할 요청 헤더 지정
+        // Authorization : Bearer Token 전달 시 사용
+        // Content-Type : application/json 요청 시 사용
+        // X-Requested-With : Ajax 요청 식별용으로 사용될 수 있음
+        // X-XSRF-TOKEN : CSRF 토큰을 헤더로 전달할 때 사용
+        config.setAllowedHeaders(List.of(
+                "Authorization",
+                "Content-Type",
+                "X-Requested-With",
+                "X-XSRF-TOKEN"
+        ));
+
+        // 쿠키, Authorization 헤더 등 인증 정보가 포함된 요청 허용
+        // JSESSIONID 기반 세션 인증을 사용하려면 true 필요
+        config.setAllowCredentials(true);
+
+
+        // URL 패턴별 CORS 정책을 등록할 수 있는 Source 객체 생성
+        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
+
+        // 모든 요청 경로에 위 CORS 정책 적용
+        source.registerCorsConfiguration("/**", config);
+
+        // Spring Security의 CORS 처리에서 사용할 설정 객체 반환
+        return source;
+    }
 }
