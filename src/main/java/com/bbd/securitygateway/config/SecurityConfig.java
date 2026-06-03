@@ -7,6 +7,7 @@ import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.SessionManagementConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
@@ -37,6 +38,11 @@ public class SecurityConfig {
                                                    CorsConfigurationSource corsConfigurationSource
                                                    ) throws Exception {
 
+        CookieCsrfTokenRepository csrfTokenRepository =
+                CookieCsrfTokenRepository.withHttpOnlyFalse();
+
+        csrfTokenRepository.setCookiePath("/");
+
 
         return http
                 // 1. 어떤 URL은 로그인 없이 허용할지 정한다. -> 에러
@@ -46,6 +52,8 @@ public class SecurityConfig {
                         // 아래는 로그인 없이 허용
                         .requestMatchers("/error").permitAll()
                         // 나머지는 전부 로그인을 거쳐야함
+                        // /api/csrf는 로그인 후 호출한다.
+                        // anyRequest().authenticated()에 의해 인증된 사용자만 CSRF 토큰을 받을 수 있다.
                         .anyRequest().authenticated()
                 )
 
@@ -91,8 +99,10 @@ public class SecurityConfig {
                 // 웹 브라우저는 Gateway와 origin이 다르면 CORS 설정이 필요하다.
                 .cors(cors -> cors.configurationSource(corsConfigurationSource))
                 // 2) CSRF
-                // 웹이 JSESSIONID 쿠키 기반이면 CSRF를 무조건 끄는 건 조심해야 한다.
-
+                // 웹은 세션 기반 CSRF 사용
+                .csrf(csrf -> csrf
+                        .csrfTokenRepository(csrfTokenRepository)
+                )
 
                 // 7. 세션을 쓸지, JWT만 쓸지 정한다.
                 // 현재 oauth2Login을 사용하면서
@@ -141,13 +151,15 @@ public class SecurityConfig {
             ));
 
             // 프론트엔드 요청에서 허용할 요청 헤더 지정
-            // Authorization  : Bearer Token 전달 시 사용
-            // Content-Type   : application/json 요청 시 사용
+            // Authorization : Bearer Token 전달 시 사용
+            // Content-Type : application/json 요청 시 사용
             // X-Requested-With : Ajax 요청 식별용으로 사용될 수 있음
+            // X-XSRF-TOKEN : CSRF 토큰을 헤더로 전달할 때 사용
             config.setAllowedHeaders(List.of(
                     "Authorization",
                     "Content-Type",
-                    "X-Requested-With"
+                    "X-Requested-With",
+                    "X-XSRF-TOKEN"
             ));
 
             // 쿠키, Authorization 헤더 등 인증 정보가 포함된 요청 허용
