@@ -117,6 +117,9 @@ public class SecurityConfig {
                 .sessionManagement(session -> session
                         .sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED)
                         .sessionFixation(SessionManagementConfigurer.SessionFixationConfigurer::changeSessionId)
+                        .maximumSessions(1)
+                        .maxSessionsPreventsLogin(false)
+                        .expiredUrl("http://localhost:5173/login?expired=true")
                 )
 
                 // 8. 인증 실패 / 권한 실패 시 어떻게 응답할지 정한다.
