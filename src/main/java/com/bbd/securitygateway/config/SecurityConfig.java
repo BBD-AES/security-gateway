@@ -2,10 +2,16 @@ package com.bbd.securitygateway.config;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.SessionManagementConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.web.cors.CorsConfiguration;
+import org.springframework.web.cors.CorsConfigurationSource;
+import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
+
+import java.util.List;
 
 // SecurityConfig 파일: 이 서버로 들어오는 HTTP 요청을 Spring Security가 어떻게 처리할지 정하는 파일
 
@@ -27,7 +33,8 @@ public class SecurityConfig {
 
     // 웹
     @Bean
-    public SecurityFilterChain securityFilterChain(HttpSecurity http
+    public SecurityFilterChain securityFilterChain(HttpSecurity http,
+                                                   CorsConfigurationSource corsConfigurationSource
                                                    ) throws Exception {
 
 
@@ -82,6 +89,7 @@ public class SecurityConfig {
                 // 6. CSRF/CORS는 어떻게 할지 정한다.
                 // 1) CORS
                 // 웹 브라우저는 Gateway와 origin이 다르면 CORS 설정이 필요하다.
+                .cors(cors -> cors.configurationSource(corsConfigurationSource))
                 // 2) CSRF
                 // 웹이 JSESSIONID 쿠키 기반이면 CSRF를 무조건 끄는 건 조심해야 한다.
 
@@ -102,4 +110,58 @@ public class SecurityConfig {
                 // 임시 생략
                 .build();
     }
+
+
+        // cors 설정
+        @Bean
+        public CorsConfigurationSource corsConfigurationSource() {
+
+            // CORS 정책 객체를 생성한다.
+            CorsConfiguration config = new CorsConfiguration();
+
+
+            // 요청을 허용할 프론트엔드 Origin 지정
+            // Cross-Origin 요청에서는 쿠키를 기본적으로 안 보내지만
+            // JSESSIONID 쿠키를 포함한 요청을 허용해야 하므로 allowCredentials(true)를 사용한다.
+            // 이 경우 "*" 전체 허용은 사용할 수 없고, 정확한 Origin을 지정해야 한다.
+            config.setAllowedOrigins(List.of(
+                    "http://localhost:5173"
+            ));
+
+
+            // 허용할 HTTP 메서드 지정
+            // OPTIONS는 브라우저가 실제 요청 전에 보내는 Preflight 요청 처리를 위해 필요
+            config.setAllowedMethods(List.of(
+                    "GET",
+                    "POST",
+                    "PUT",
+                    "PATCH",
+                    "DELETE",
+                    "OPTIONS"
+            ));
+
+            // 프론트엔드 요청에서 허용할 요청 헤더 지정
+            // Authorization  : Bearer Token 전달 시 사용
+            // Content-Type   : application/json 요청 시 사용
+            // X-Requested-With : Ajax 요청 식별용으로 사용될 수 있음
+            config.setAllowedHeaders(List.of(
+                    "Authorization",
+                    "Content-Type",
+                    "X-Requested-With"
+            ));
+
+            // 쿠키, Authorization 헤더 등 인증 정보가 포함된 요청 허용
+            // JSESSIONID 기반 세션 인증을 사용하려면 true 필요
+            config.setAllowCredentials(true);
+
+
+            // URL 패턴별 CORS 정책을 등록할 수 있는 Source 객체 생성
+            UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
+
+            // 모든 요청 경로에 위 CORS 정책 적용
+            source.registerCorsConfiguration("/**", config);
+
+            // Spring Security의 CORS 처리에서 사용할 설정 객체 반환
+            return source;
+        }
 }
