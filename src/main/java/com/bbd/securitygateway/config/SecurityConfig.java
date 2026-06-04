@@ -3,16 +3,17 @@ package com.bbd.securitygateway.config;
 import jakarta.servlet.http.HttpSession;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.annotation.Order;
+import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.annotation.web.configurers.SessionManagementConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.core.session.SessionRegistry;
 import org.springframework.security.core.session.SessionRegistryImpl;
-import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.oauth2.client.oidc.web.logout.OidcClientInitiatedLogoutSuccessHandler;
 import org.springframework.security.oauth2.client.registration.ClientRegistrationRepository;
 import org.springframework.security.oauth2.core.oidc.user.OidcUser;
-import org.springframework.security.oauth2.core.user.OAuth2User;
 import org.springframework.security.web.DefaultRedirectStrategy;
 import org.springframework.security.web.RedirectStrategy;
 import org.springframework.security.web.SecurityFilterChain;
@@ -32,21 +33,86 @@ import java.util.List;
 @Configuration
 public class SecurityConfig {
 
-    // 1. 어떤 URL은 로그인 없이 허용할지 정한다.
-    // 2. 어떤 URL은 로그인해야 접근 가능한지 정한다.
-    // 3. 어떤 URL은 특정 Role이 있어야 접근 가능한지 정한다.
-    // 4. 로그인 방식은 무엇인지 정한다.
-    // 5. 로그아웃은 어떻게 할지 정한다.
-    // 6. CSRF/CORS는 어떻게 할지 정한다.
-    // 7. 세션을 쓸지, JWT만 쓸지 정한다.
-    // 8. 인증 실패 / 권한 실패 시 어떻게 응답할지 정한다.
-    // 이 Bean을 등록하면 Spring Boot의 기본 SecurityFilterChain 대신
-    // 내가 직접 정의한 보안 규칙이 적용된다.
+    /*
+    SecurityConfig 파일: 이 서버로 들어오는 HTTP 요청을 Spring Security가 어떻게 처리할지 정하는 파일
+    이 설정에서는 요청 성격에 따라 SecurityFilterChain을 분리한다.
+    1) Authorization: Bearer 토큰이 있는 요청
+    → 모바일/앱 또는 토큰 기반 API 요청으로 보고 JWT Resource Server 방식으로 처리한다.
+    2) Bearer 토큰이 없는 일반 브라우저 요청
+    → 웹 요청으로 보고 OAuth2/OIDC 로그인 + JSESSIONID 세션 방식으로 처리한다.
 
+    각 SecurityFilterChain에서 정하는 것
+    1. 어떤 URL은 로그인 없이 허용할지 정한다.
+    2. 어떤 URL은 인증이 필요할지 정한다.
+    3. 어떤 URL은 특정 Role이 있어야 접근 가능한지 정한다.
+    현재 Gateway에서는 Role 기반 인가는 최소화하고, 세부 인가는 각 MSA에서 처리한다.
+    4. 인증 방식이 무엇인지 정한다.
+    - 웹: oauth2Login() 기반 OIDC 로그인
+    - 앱/토큰 요청: oauth2ResourceServer().jwt() 기반 Bearer Token 검증
+    5. 로그아웃을 어떻게 처리할지 정한다.
+    - 웹: Gateway 세션 종료 + Keycloak OIDC 로그아웃
+    - 앱/토큰 요청: 서버 세션이 없으므로 기본적으로 클라이언트 토큰 삭제 또는 별도 revoke 정책 사용
+    6. CSRF/CORS를 어떻게 처리할지 정한다.
+    - 웹: JSESSIONID 쿠키 기반이므로 CSRF 방어 적용
+    - 앱/토큰 요청: Authorization 헤더 기반 stateless 인증이므로 CSRF 비활성화
+    7. 세션을 쓸지, JWT만 쓸지 정한다.
+    - 웹: IF_REQUIRED, JSESSIONID 세션 사용
+    - 앱/토큰 요청: STATELESS, 세션 미사용
+    8. 인증 실패 / 권한 실패 시 어떻게 응답할지 정한다.
+    - 웹: 로그인 페이지 또는 프론트 경로로 리다이렉트
+    - 앱/토큰 요청: 401/403 JSON 응답이 적합하다.
 
-    // 웹
+    이 Bean들을 등록하면 Spring Boot의 기본 SecurityFilterChain 대신
+    내가 직접 정의한 보안 규칙이 적용된다.
+    */
+
+    // 모바일 전용
     @Bean
-    public SecurityFilterChain securityFilterChain(HttpSecurity http,
+    @Order(1)
+    public SecurityFilterChain mobileSecurityFilterChain(
+            HttpSecurity http,
+            CorsConfigurationSource corsConfigurationSource
+    ) throws Exception {
+        return http
+                // 모바일 전용 - Bearer 토큰
+                .securityMatcher(request -> {
+                    String authorization = request.getHeader("Authorization");
+                    return authorization != null && authorization.startsWith("Bearer ");
+                })
+                // 로그인 유무에 따른 허용
+                .authorizeHttpRequests(auth -> auth
+                        .requestMatchers("/error").permitAll()
+                        .anyRequest().authenticated()
+                )
+                // cors
+                .cors(cors -> cors.configurationSource(corsConfigurationSource))
+                // csrf 비활성화
+                .csrf(AbstractHttpConfigurer::disable)
+                // 세션 저장 x
+                .sessionManagement(session -> session
+                        .sessionCreationPolicy(SessionCreationPolicy.STATELESS)
+                )
+
+                // Authorization: Bearer 형식으로 전달된 Keycloak Access Token을 검증한다.
+                // 이 설정은 모바일 로그인 자체를 처리하는 것이 아니라,
+                // 모바일 앱이 이미 발급받아 보낸 JWT를 API 요청마다 검증하는 Resource Server 설정이다.
+                // 검증에 성공하면 해당 요청 동안 사용할 JwtAuthenticationToken이 생성된다.
+                // Authorization: Bearer <JWT>
+                // Keycloak issuer-uri 기준으로 JWT 검증
+                // 서명 검증
+                // 만료 시간 검증
+                // issuer 검증
+                // JwtAuthenticationToken 생성
+                .oauth2ResourceServer(resourceServer -> resourceServer
+                        .jwt(Customizer.withDefaults())
+                )
+                .build();
+    }
+
+    // 웹 전용
+    @Bean
+    @Order(2)
+    public SecurityFilterChain webSecurityFilterChain(HttpSecurity http,
                                                    ClientRegistrationRepository clientRegistrationRepository,
                                                    CorsConfigurationSource corsConfigurationSource,
                                                    SessionRegistry sessionRegistry
