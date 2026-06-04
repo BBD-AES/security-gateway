@@ -8,12 +8,13 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
 
 @RestController
 public class AuthController {
 
     /*
-    현재 브라우저 사용자의 로그인 상태와 기본 사용자 정보를 반환하는 API.
+    현재 브라우저 사용자의 로그인 상태와 기본 사용자 정보를 반환하는 API
      프론트는 이 API를 호출해서
      1) 현재 로그인된 사용자인지
      2) 로그인되어 있다면 어떤 사용자 정보가 있는지를 확인할 수 있다.
@@ -43,7 +44,7 @@ public class AuthController {
             System.out.println("authentication name = " + authentication.getName());
             System.out.println("isAuthenticated = " + authentication.isAuthenticated());
             System.out.println("authorities = " + authentication.getAuthorities());
-            System.out.println("principal class = " + authentication.getPrincipal().getClass().getName());
+            System.out.println("principal class = " + Objects.requireNonNull(authentication.getPrincipal()).getClass().getName());
             System.out.println("principal = " + authentication.getPrincipal());
         }
 
