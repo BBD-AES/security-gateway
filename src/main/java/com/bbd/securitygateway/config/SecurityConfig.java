@@ -1,15 +1,25 @@
 package com.bbd.securitygateway.config;
 
+import jakarta.servlet.http.HttpSession;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.SessionManagementConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.core.session.SessionRegistry;
+import org.springframework.security.core.session.SessionRegistryImpl;
+import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.oauth2.client.oidc.web.logout.OidcClientInitiatedLogoutSuccessHandler;
 import org.springframework.security.oauth2.client.registration.ClientRegistrationRepository;
+import org.springframework.security.oauth2.core.oidc.user.OidcUser;
+import org.springframework.security.oauth2.core.user.OAuth2User;
+import org.springframework.security.web.DefaultRedirectStrategy;
+import org.springframework.security.web.RedirectStrategy;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.AuthenticationSuccessHandler;
 import org.springframework.security.web.authentication.logout.LogoutSuccessHandler;
 import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
+import org.springframework.security.web.session.HttpSessionEventPublisher;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
@@ -38,7 +48,8 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http,
                                                    ClientRegistrationRepository clientRegistrationRepository,
-                                                   CorsConfigurationSource corsConfigurationSource
+                                                   CorsConfigurationSource corsConfigurationSource,
+                                                   SessionRegistry sessionRegistry
     ) throws Exception {
 
         CookieCsrfTokenRepository csrfTokenRepository =
@@ -71,7 +82,7 @@ public class SecurityConfig {
                 // 사용자를 Keycloak 로그인 페이지로 리다이렉트하고,
                 // 로그인 성공 후 callback을 받아 세션을 만드는 기능
                 .oauth2Login(oauth2 -> oauth2
-                        .defaultSuccessUrl("http://localhost:5173/main", true)
+                        .successHandler(oauth2LoginSuccessHandler(sessionRegistry))
                 )
                 // 5. 로그아웃은 어떻게 할지 정한다.
                 // 웹 브라우저 로그아웃은 Gateway의 /logout으로 처리한다.
@@ -120,6 +131,7 @@ public class SecurityConfig {
                         .maximumSessions(1)
                         .maxSessionsPreventsLogin(false)
                         .expiredUrl("http://localhost:5173/login?expired=true")
+                        .sessionRegistry(sessionRegistry)
                 )
 
                 // 8. 인증 실패 / 권한 실패 시 어떻게 응답할지 정한다.
@@ -205,5 +217,124 @@ public class SecurityConfig {
 
         // Spring Security의 CORS 처리에서 사용할 설정 객체 반환
         return source;
+    }
+
+
+    /*
+       OAuth2/OIDC 로그인 성공 후 실행할 커스텀 성공 핸들러
+       목적:
+       - 같은 Keycloak 사용자로 이미 로그인된 기존 세션이 있으면 기존 세션을 만료시킨다.
+       - 새로 로그인한 현재 세션만 유지한다.
+       - 로그인 성공 후 main 페이지로 이동시킨다.
+     */
+
+    private AuthenticationSuccessHandler oauth2LoginSuccessHandler(SessionRegistry sessionRegistry) {
+        return (request, response, authentication) -> {
+
+            // 현재 로그인 요청의 HttpSession을 가져온다.
+            // false는 이미 세션이 있으면 가져오고, 없으면 null 반환이라는 의미
+            HttpSession session = request.getSession(false);
+
+
+            // 정상적인 OAuth2/OIDC 로그인 성공 흐름에서는 HttpSession이 이미 존재해야 한다.
+            // 세션이 없다면 OAuth2 AuthorizationRequest 저장/검증 또는 세션 인증 전략 흐름이 깨진 비정상 상태로 본다.
+            // 따라서 새 세션을 만들어 계속 진행하지 않고, 다시 로그인하도록 돌려보낸다.
+            if (session == null) {
+                response.sendRedirect("http://localhost:5173/login?error=session");
+                return;
+            }
+
+
+            // 현재 로그인에 사용되는 세션 ID
+            String currentSessionId = session.getId();
+
+            // 현재 로그인한 사용자의 고유 식별값을 추출한다.
+            // OIDC 로그인에서는 Keycloak sub 값을 우선 사용한다.
+            String currentUserKey = extractUserKey(authentication.getPrincipal());
+
+            // SessionRegistry에 등록된 모든 principal을 순회한다.
+            // principal은 Spring Security가 세션에 저장한 인증 사용자 객체다.
+            sessionRegistry.getAllPrincipals().forEach(principal -> {
+
+                // 기존 세션에 저장된 principal에서도 사용자 고유 식별값을 추출한다.
+                String userKey = extractUserKey(principal);
+
+                // 현재 로그인한 사용자와 같은 사용자라면
+                if (currentUserKey.equals(userKey)) {
+
+                    // 해당 principal이 가진 모든 세션을 조회한다.
+                    // false는 이미 만료 처리된 세션은 제외하고 조회한다는 의미다.
+                    sessionRegistry.getAllSessions(principal, false).forEach(sessionInformation -> {
+
+                        // 현재 새로 로그인한 세션이 아닌 기존 세션이면
+                        if (!sessionInformation.getSessionId().equals(currentSessionId)) {
+
+                            // 기존 세션을 만료 처리한다.
+                            // 실제 세션 객체를 즉시 삭제한다기보다는,
+                            // Spring Security가 이후 해당 세션 요청을 만료된 세션으로 인식하게 한다.
+                            sessionInformation.expireNow();
+                        }
+                    });
+                }
+            });
+            // 로그인 성공 후 main 페이지로 리다이렉트한다.
+            // defaultSuccessUrl 대신 직접 RedirectStrategy를 사용하는 이유는
+            // 위의 기존 세션 만료 로직을 실행한 뒤 원하는 위치로 보내기 위해서다.
+            RedirectStrategy redirectStrategy = new DefaultRedirectStrategy();
+            redirectStrategy.sendRedirect(request, response, "http://localhost:5173/main");
+        };
+    }
+
+
+    /*
+       현재 로그인된 사용자들의 세션 정보를 추적하기 위한 저장소 Bean
+       maximumSessions(1) 설정과 함께 사용되며,
+       어떤 principal이 어떤 세션을 가지고 있는지를 관리한다.
+       또한 커스텀 로그인 성공 핸들러에서
+       sessionRegistry.getAllPrincipals,
+       sessionRegistry.getAllSessions를 통해
+       기존 로그인 세션을 찾아 만료시키는 데 사용한다.
+     */
+    @Bean
+    public SessionRegistry sessionRegistry() {
+        return new SessionRegistryImpl();
+    }
+
+    /*
+       HttpSession의 생성/소멸/만료 이벤트를 Spring Security에 전달하는 Bean
+       SessionRegistry는 현재 살아있는 세션 정보를 관리해야 하는데,
+       로그아웃이나 세션 만료가 발생했을 때 그 정보를 정리하려면
+       서블릿 컨테이너의 세션 이벤트를 알아야 한다.
+       이 Bean을 등록하면 세션이 사라졌을 때
+       SessionRegistry 쪽에도 해당 세션 만료/삭제 이벤트가 전달된다.
+     */
+    @Bean
+    public HttpSessionEventPublisher httpSessionEventPublisher() {
+        return new HttpSessionEventPublisher();
+    }
+
+
+    /*
+       principal 객체에서 같은 사용자 여부를 판단할 고유값을 추출한다.
+       OAuth2/OIDC 로그인에서는 로그인 성공 시마다 OidcUser/DefaultOidcUser principal 객체가 새로 생성된다.
+       Keycloak의 sub 같은 안정적인 사용자 고유값을 기준으로 비교한다.
+       이 메서드는 커스텀 로그인 성공 핸들러에서
+       현재 로그인 사용자와 기존 세션 사용자들이 같은 사람인지 비교할 때 사용된다.
+     */
+    private String extractUserKey(Object principal) {
+        // 현재 Gateway는 Keycloak OIDC 로그인을 사용한다.
+        // OIDC 로그인 성공 시 principal은 OidcUser이며,
+        // sub는 Keycloak Realm 내 사용자를 식별하는 안정적인 고유 ID다.
+        if (principal instanceof OidcUser oidcUser) {
+            return oidcUser.getSubject(); // Keycloak sub
+        }
+
+        // 현재 인증 구조에서는 OidcUser 외 principal은 예상하지 않는다.
+        // 예상하지 않은 principal로 같은 사용자 비교를 계속하면
+        // 잘못된 세션 만료가 발생할 수 있으므로 실패 처리한다.
+        throw new IllegalStateException(
+                "OIDC 로그인에서 예상하지 않은 principal 타입입니다: "
+                        + principal.getClass().getName()
+        );
     }
 }
