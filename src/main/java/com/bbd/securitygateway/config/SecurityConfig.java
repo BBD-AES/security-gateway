@@ -138,7 +138,9 @@ public class SecurityConfig {
                                 "/swagger-ui.html",
                                 "/v3/api-docs/**",
                                 "/item/swagger-ui/**",
-                                "/item/v3/api-docs/**"
+                                "/item/v3/api-docs/**",
+                                "/item/api/v1/items/**",
+                                "/item/api/v2/items/**"
                         ).permitAll()
                         // 나머지는 전부 로그인을 거쳐야함
                         // /api/csrf는 로그인 후 호출한다.
