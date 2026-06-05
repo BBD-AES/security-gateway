@@ -49,8 +49,9 @@ spring:
 
   cloud:
     gateway:
-      mvc:
-        routes:
+      server:
+        webmvc:
+          routes:
           - id: user-service
             uri: http://bbd-user:8080
             predicates:
@@ -60,8 +61,6 @@ spring:
             uri: http://bbd-item:8080
             predicates:
               - Path=/api/v1/items/**,/api/v2/items/**
-            filters:
-              - PrefixPath=/item
 
           - id: item-service-swagger
             uri: http://bbd-item:8080
