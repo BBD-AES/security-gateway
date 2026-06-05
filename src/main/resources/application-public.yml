@@ -3,7 +3,7 @@ server:
     session:
       cookie:
         http-only: true
-        secure: false # https 환경에서는 true로 변경
+        secure: false
         same-site: lax
         path: /
 
@@ -11,20 +11,27 @@ spring:
   application:
     name: security-gateway
 
+  threads:
+    virtual:
+      enabled: true
+
+  datasource:
+    url: ${DB_ENDPOINT}
+    username: ${DB_NAME}
+    password: ${DB_PASSWORD}
+    driver-class-name: org.postgresql.Driver
+
   data:
     redis:
-      host: localhost
-      port: 6379
-      # password: your-redis-password
+      host: ${REDIS_HOST}
+      port: ${REDIS_PORT}
 
-  # 시원
   security:
     oauth2:
       client:
         registration:
           keycloak:
-            client-id: security-gateway
-            ## 환경변수 바꾸기
+            client-id: ${KEYCLOAK_CLIENT_ID}
             client-secret: ${KEYCLOAK_CLIENT_SECRET}
             authorization-grant-type: authorization_code
             redirect-uri: "{baseUrl}/login/oauth2/code/{registrationId}"
@@ -36,21 +43,49 @@ spring:
 
         provider:
           keycloak:
-            issuer-uri: https://bbd-keycloak.inwoohub.com/auth/realms/bbd
+            issuer-uri: ${KEYCLOAK_ISSUER_URI}
             user-name-attribute: preferred_username
 
       resourceserver:
         jwt:
-          issuer-uri: https://bbd-keycloak.inwoohub.com/auth/realms/bbd
+          issuer-uri: ${KEYCLOAK_ISSUER_URI}
 
-  # 인우
   cloud:
     gateway:
       routes:
+        - id: user-service
+          uri: http://localhost:8081
+          predicates:
+            - Path=/user/**
+          filters:
+            - StripPrefix=1
+
         - id: item-service
           uri: http://localhost:8082
           predicates:
             - Path=/item/**
+
+          filters:
+            - StripPrefix=1
+
+        - id: inventory-service
+          uri: http://localhost:8083
+          predicates:
+            - Path=/inventory/**
+          filters:
+            - StripPrefix=1
+
+        - id: procurement-service
+          uri: http://localhost:8084
+          predicates:
+            - Path=/procurement/**
+          filters:
+            - StripPrefix=1
+
+        - id: sales-service
+          uri: http://localhost:8085
+          predicates:
+            - Path=/sales/**
           filters:
             - StripPrefix=1
 
@@ -58,8 +93,12 @@ spring:
         connect-timeout: 3000
         response-timeout: 5s
 
+springdoc:
+  swagger-ui:
+    tags-sorter: alpha
+    operations-sorter: alpha
+
 logging:
   level:
     org.springframework.security: DEBUG
     org.springframework.cloud.gateway: DEBUG
-
