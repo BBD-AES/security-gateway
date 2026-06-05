@@ -63,6 +63,13 @@ spring:
             filters:
               - PrefixPath=/item
 
+          - id: item-service-swagger
+            uri: http://bbd-item:8080
+            predicates:
+              - Path=/item/swagger-ui/**,/item/swagger-ui.html,/item/v3/api-docs/**
+            filters:
+              - StripPrefix=1
+
           - id: inventory-service
             uri: http://bbd-inventory:8080
             predicates:
