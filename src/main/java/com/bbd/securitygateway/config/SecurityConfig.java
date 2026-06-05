@@ -140,9 +140,6 @@ public class SecurityConfig {
                                 "/item/swagger-ui/**",
                                 "/item/v3/api-docs/**"
                         ).permitAll()
-
-                        .anyRequest().authenticated()
-
                         // 나머지는 전부 로그인을 거쳐야함
                         // /api/csrf는 로그인 후 호출한다.
                         // anyRequest().authenticated()에 의해 인증된 사용자만 CSRF 토큰을 받을 수 있다.
