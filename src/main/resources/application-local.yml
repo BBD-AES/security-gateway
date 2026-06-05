@@ -51,6 +51,7 @@ spring:
           uri: http://localhost:8082
           predicates:
             - Path=/item/**
+
           filters:
             - StripPrefix=1
 
