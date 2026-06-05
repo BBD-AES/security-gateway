@@ -130,7 +130,14 @@ public class SecurityConfig {
                 // auth -> Spring Security가 넘겨준 URL 인가 규칙 설정 객체
                 .authorizeHttpRequests(auth -> auth
                         // 아래는 로그인 없이 허용
-                        .requestMatchers("/error").permitAll()
+                        .requestMatchers(
+                                "/error",
+                                "/api/v1/items/**",
+                                "/api/v2/items/**"
+                        ).permitAll()
+
+                        .anyRequest().authenticated()
+
                         // 나머지는 전부 로그인을 거쳐야함
                         // /api/csrf는 로그인 후 호출한다.
                         // anyRequest().authenticated()에 의해 인증된 사용자만 CSRF 토큰을 받을 수 있다.
