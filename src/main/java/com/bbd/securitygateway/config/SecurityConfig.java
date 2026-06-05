@@ -113,9 +113,9 @@ public class SecurityConfig {
     @Bean
     @Order(2)
     public SecurityFilterChain webSecurityFilterChain(HttpSecurity http,
-                                                   ClientRegistrationRepository clientRegistrationRepository,
-                                                   CorsConfigurationSource corsConfigurationSource,
-                                                   SessionRegistry sessionRegistry
+                                                      ClientRegistrationRepository clientRegistrationRepository,
+                                                      CorsConfigurationSource corsConfigurationSource,
+                                                      SessionRegistry sessionRegistry
     ) throws Exception {
 
         CookieCsrfTokenRepository csrfTokenRepository =
@@ -133,7 +133,12 @@ public class SecurityConfig {
                         .requestMatchers(
                                 "/error",
                                 "/api/v1/items/**",
-                                "/api/v2/items/**"
+                                "/api/v2/items/**",
+                                "/swagger-ui/**",
+                                "/swagger-ui.html",
+                                "/v3/api-docs/**",
+                                "/item/swagger-ui/**",
+                                "/item/v3/api-docs/**"
                         ).permitAll()
 
                         .anyRequest().authenticated()
