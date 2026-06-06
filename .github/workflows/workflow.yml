@@ -6,7 +6,7 @@ on:
 
 env:
   AWS_REGION: ap-northeast-2
-  AWS_ACCOUNT_ID: 013969386212
+  AWS_ACCOUNT_ID: "013969386212"
   ECR_REPOSITORY: bbd-gateway
   DOCKER_IMAGE_NAME: bbd-gateway
 
