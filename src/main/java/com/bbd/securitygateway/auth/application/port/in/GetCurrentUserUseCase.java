@@ -1,22 +1,28 @@
 package com.bbd.securitygateway.auth.application.port.in;
 
-import com.bbd.securitygateway.auth.adapter.in.web.response.CurrentUserResponse;
 import com.bbd.securitygateway.auth.application.model.AuthPrincipal;
+import com.bbd.securitygateway.auth.application.model.CurrentUserResult;
 
 /*
  현재 요청 사용자의 상태를 조회하는 유스케이스.
- 현재 사용자 조회 기능을 외부에서 호출하려면 이 인터페이스로 들어와라.
 
- 이 유스케이스는 /api/auth/me에서 사용된다.
+ 이 유스케이스는 adapter.in.web 계층의 /api/auth/me에서 호출할 수 있다.
 
  역할:
  - 로그인 여부 확인
  - Keycloak 인증 사용자 정보 확인
  - User Snapshot 조회
  - User Service 등록 여부 확인
- - 프론트에 내려줄 CurrentUserResponse 생성
+ - 현재 사용자 상태를 CurrentUserResult로 반환
+
+ application 계층은 웹 응답 DTO를 직접 반환하지 않는다.
+ 따라서 CurrentUserResponse를 만들지 않고,
+ CurrentUserResult라는 application 결과 모델을 반환한다.
+
+ adapter.in.web 계층은 CurrentUserResult를 받아
+ CurrentUserResponse로 변환한 뒤 클라이언트에 응답한다.
  */
 public interface GetCurrentUserUseCase {
 
-    CurrentUserResponse getCurrentUser(AuthPrincipal principal);
+    CurrentUserResult getCurrentUser(AuthPrincipal principal);
 }

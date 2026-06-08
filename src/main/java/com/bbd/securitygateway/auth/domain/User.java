@@ -100,14 +100,14 @@ public record User(
          - BRANCH_MANAGER
          - BRANCH_STAFF
 
-        API 접근 권한 판단에 사용할 수 있는 값이다.
+         API 접근 권한 판단에 사용할 수 있는 값이다.
 
-        이 값은 Gateway가 직접 계산하지 않는다.
-        Gateway는 User Service에서 조회했거나 세션/Redis에 캐시된 User Snapshot의 role 값을 사용한다.
+         이 값은 Gateway가 직접 계산하지 않는다.
+         Gateway는 User Service에서 조회했거나 세션/Redis에 캐시된 User Snapshot의 role 값을 사용한다.
 
-        role의 기준 데이터는 User Service의 users.role이며,
-        User Service는 회사 원천 데이터, IdP, HR 시스템 등에서 들어온 사용자/직무/소속 정보를 바탕으로
-        이 값을 생성하거나 갱신할 수 있다.
+         role의 기준 데이터는 User Service의 users.role이며,
+         User Service는 회사 원천 데이터, IdP, HR 시스템 등에서 들어온 사용자/직무/소속 정보를 바탕으로
+         이 값을 생성하거나 갱신할 수 있다.
         */
         String role,
 
