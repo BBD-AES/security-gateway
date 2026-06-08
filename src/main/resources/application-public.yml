@@ -1,11 +1,12 @@
 server:
   port: 8080
+  forward-headers-strategy: framework
 
   servlet:
     session:
       cookie:
         http-only: true
-        secure: false
+        secure: ${COOKIE_SECURE:false}
         same-site: lax
         path: /
 
@@ -16,12 +17,6 @@ spring:
   threads:
     virtual:
       enabled: true
-
-  datasource:
-    url: ${DB_ENDPOINT}
-    username: ${DB_NAME}
-    password: ${DB_PASSWORD}
-    driver-class-name: org.postgresql.Driver
 
   security:
     oauth2:
@@ -47,43 +42,77 @@ spring:
         jwt:
           issuer-uri: ${KEYCLOAK_ISSUER_URI}
 
-  cloud:
-    gateway:
-      server:
-        webmvc:
-          routes:
-          - id: user-service
-            uri: http://bbd-user:8080
-            predicates:
-              - Path=/api/v1/users/**,/api/v2/users/**
+  spring:
+    cloud:
+      gateway:
+        server:
+          webmvc:
+            routes:
+              - id: user-service
+                uri: ${USER_SERVICE_URI}
+                predicates:
+                  - Path=/api/v1/users/**,/api/v2/users/**
 
-          - id: item-service
-            uri: http://bbd-item:8080
-            predicates:
-              - Path=/api/v1/items/**,/api/v2/items/**
+              - id: user-service-swagger
+                uri: ${USER_SERVICE_URI}
+                predicates:
+                  - Path=/user/swagger-ui/**,/user/swagger-ui.html,/user/v3/api-docs/**
+                filters:
+                  - StripPrefix=1
 
-          - id: item-service-swagger
-            uri: http://bbd-item:8080
-            predicates:
-              - Path=/item/swagger-ui/**,/item/swagger-ui.html,/item/v3/api-docs/**
-            filters:
-              - StripPrefix=1
 
-          - id: inventory-service
-            uri: http://bbd-inventory:8080
-            predicates:
-              - Path=/api/v1/inventory/**,/api/v2/inventory/**
+              - id: item-service
+                uri: ${ITEM_SERVICE_URI}
+                predicates:
+                  - Path=/api/v1/items/**,/api/v2/items/**
 
-          - id: procurement-service
-            uri: http://bbd-procurement:8080
-            predicates:
-              - Path=/api/v1/procurements/**,/api/v2/procurements/**
+              - id: item-service-swagger
+                uri: ${ITEM_SERVICE_URI}
+                predicates:
+                  - Path=/item/swagger-ui/**,/item/swagger-ui.html,/item/v3/api-docs/**
+                filters:
+                  - StripPrefix=1
 
-          - id: sales-service
-            uri: http://bbd-sales:8080
-            predicates:
-              - Path=/api/v1/sales/**,/api/v2/sales/**
 
+              - id: inventory-service
+                uri: ${INVENTORY_SERVICE_URI}
+                predicates:
+                  - Path=/api/v1/inventory/**,/api/v2/inventory/**
+
+              - id: inventory-service-swagger
+                uri: ${INVENTORY_SERVICE_URI}
+                predicates:
+                  - Path=/inventory/swagger-ui/**,/inventory/swagger-ui.html,/inventory/v3/api-docs/**
+                filters:
+                  - StripPrefix=1
+
+
+              - id: procurement-service
+                uri: ${PROCUREMENT_SERVICE_URI}
+                predicates:
+                  - Path=/api/v1/procurements/**,/api/v2/procurements/**
+
+              - id: procurement-service-swagger
+                uri: ${PROCUREMENT_SERVICE_URI}
+                predicates:
+                  - Path=/procurement/swagger-ui/**,/procurement/swagger-ui.html,/procurement/v3/api-docs/**
+                filters:
+                  - StripPrefix=1
+
+
+              - id: sales-service
+                uri: ${SALES_SERVICE_URI}
+                predicates:
+                  - Path=/api/v1/sales/**,/api/v2/sales/**
+                filters:
+                  - PrefixPath=/sales
+
+              - id: sales-service-swagger
+                uri: ${SALES_SERVICE_URI}
+                predicates:
+                  - Path=/sales/swagger-ui/**,/sales/swagger-ui.html,/sales/v3/api-docs/**
+                filters:
+                  - StripPrefix=1
 springdoc:
   swagger-ui:
     tags-sorter: alpha
