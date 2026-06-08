@@ -47,3 +47,8 @@ src/main/resources/application-*.properties
 ### macOS ###
 .DS_Store
 ._*
+
+
+### env 파일
+.env.local
+.env.public
