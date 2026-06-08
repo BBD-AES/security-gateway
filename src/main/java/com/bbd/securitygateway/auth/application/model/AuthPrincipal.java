@@ -9,7 +9,7 @@ package com.bbd.securitygateway.auth.application.model;
  즉, adapter.in.web 또는 adapter.in.security 계층에서
  Authentication/OidcUser를 읽어 AuthPrincipal로 변환한 뒤
  application usecase에 전달한다.
- /
+*/
 
 /*
  username: 로그인 식별자
