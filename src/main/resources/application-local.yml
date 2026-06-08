@@ -4,6 +4,7 @@ server:
   servlet:
     session:
       cookie:
+        http-only: true
         secure: false
         same-site: lax
 
