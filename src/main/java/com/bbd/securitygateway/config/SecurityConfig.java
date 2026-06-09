@@ -1,8 +1,6 @@
 package com.bbd.securitygateway.config;
 
-import com.bbd.securitygateway.gateway.filter.AccessTokenRelayFilter;
 import jakarta.servlet.http.HttpSession;
-import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.annotation.Order;
@@ -19,7 +17,6 @@ import org.springframework.security.oauth2.core.oidc.user.OidcUser;
 import org.springframework.security.web.DefaultRedirectStrategy;
 import org.springframework.security.web.RedirectStrategy;
 import org.springframework.security.web.SecurityFilterChain;
-import org.springframework.security.web.authentication.AnonymousAuthenticationFilter;
 import org.springframework.security.web.authentication.AuthenticationSuccessHandler;
 import org.springframework.security.web.authentication.logout.LogoutSuccessHandler;
 import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
@@ -72,7 +69,7 @@ public class SecurityConfig {
     // 모바일 전용
     @Bean
     @Order(1)
-    public SecurityFilterChain mobileSecurityFilterChain(
+    public SecurityFilterChain bearerTokenSecurityFilterChain(
             HttpSecurity http,
             CorsConfigurationSource corsConfigurationSource
     ) throws Exception {
@@ -119,8 +116,7 @@ public class SecurityConfig {
     public SecurityFilterChain webSecurityFilterChain(HttpSecurity http,
                                                       ClientRegistrationRepository clientRegistrationRepository,
                                                       CorsConfigurationSource corsConfigurationSource,
-                                                      SessionRegistry sessionRegistry,
-                                                      AccessTokenRelayFilter accessTokenRelayFilter
+                                                      SessionRegistry sessionRegistry
     ) throws Exception {
 
         CookieCsrfTokenRepository csrfTokenRepository =
@@ -168,7 +164,6 @@ public class SecurityConfig {
                 .oauth2Login(oauth2 -> oauth2
                         .successHandler(oauth2LoginSuccessHandler(sessionRegistry))
                 )
-                .addFilterAfter(accessTokenRelayFilter, AnonymousAuthenticationFilter.class)
                 // 5. 로그아웃은 어떻게 할지 정한다.
                 // 웹 브라우저 로그아웃은 Gateway의 /logout으로 처리한다.
                 // Gateway 세션을 무효화하고, JSESSIONID 쿠키를 삭제한다.
@@ -421,29 +416,5 @@ public class SecurityConfig {
                 "OIDC 로그인에서 예상하지 않은 principal 타입입니다: "
                         + principal.getClass().getName()
         );
-    }
-
-    /*
- AccessTokenRelayFilter는 Spring SecurityFilterChain 안에서만 실행되어야 한다.
-
- 이 필터는 Gateway 웹 세션에 저장된 OAuth2 Access Token을 꺼내
- 하위 MSA 요청의 Authorization 헤더로 전달한다.
-
- 단, 이미 Authorization: Bearer 헤더가 있는 요청은
- 서비스 간 요청일 수 있으므로 덮어쓰지 않는다.
-
- 일반 Servlet Filter로 자동 등록되면 SecurityFilterChain 밖에서도 실행되어
- 중복 실행될 수 있으므로 FilterRegistrationBean으로 자동 등록을 비활성화한다.
- */
-    @Bean
-    public FilterRegistrationBean<AccessTokenRelayFilter> accessTokenRelayFilterRegistration(
-            AccessTokenRelayFilter accessTokenRelayFilter
-    ) {
-        FilterRegistrationBean<AccessTokenRelayFilter> registration =
-                new FilterRegistrationBean<>(accessTokenRelayFilter);
-
-        registration.setEnabled(false);
-
-        return registration;
     }
 }

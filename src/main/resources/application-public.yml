@@ -51,6 +51,8 @@ spring:
               uri: ${USER_SERVICE_URI}
               predicates:
                 - Path=/api/v1/users/**,/api/v2/users/**
+              filters:
+                - TokenRelay=
 
             - id: user-service-swagger
               uri: ${USER_SERVICE_URI}
@@ -59,11 +61,12 @@ spring:
               filters:
                 - StripPrefix=1
 
-
             - id: item-service
               uri: ${ITEM_SERVICE_URI}
               predicates:
                 - Path=/api/v1/items/**,/api/v2/items/**
+              filters:
+                - TokenRelay=
 
             - id: item-service-swagger
               uri: ${ITEM_SERVICE_URI}
@@ -72,11 +75,12 @@ spring:
               filters:
                 - StripPrefix=1
 
-
             - id: inventory-service
               uri: ${INVENTORY_SERVICE_URI}
               predicates:
                 - Path=/api/v1/inventory/**,/api/v2/inventory/**
+              filters:
+                - TokenRelay=
 
             - id: inventory-service-swagger
               uri: ${INVENTORY_SERVICE_URI}
@@ -85,11 +89,12 @@ spring:
               filters:
                 - StripPrefix=1
 
-
             - id: procurement-service
               uri: ${PROCUREMENT_SERVICE_URI}
               predicates:
                 - Path=/api/v1/procurements/**,/api/v2/procurements/**
+              filters:
+                - TokenRelay=
 
             - id: procurement-service-swagger
               uri: ${PROCUREMENT_SERVICE_URI}
@@ -98,13 +103,13 @@ spring:
               filters:
                 - StripPrefix=1
 
-
             - id: sales-service
               uri: ${SALES_SERVICE_URI}
               predicates:
                 - Path=/api/v1/sales/**,/api/v2/sales/**
               filters:
                 - PrefixPath=/sales
+                - TokenRelay=
 
             - id: sales-service-swagger
               uri: ${SALES_SERVICE_URI}
