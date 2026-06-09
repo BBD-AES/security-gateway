@@ -401,7 +401,7 @@ public class SecurityConfig {
      */
     private String extractUserKey(Object principal) {
         // 현재 Gateway는 Keycloak OIDC 로그인을 사용한다.
-        // OIDC 로그 인 성공 시 principal은 OidcUser이며,
+        // OIDC 로그인 성공 시 principal은 OidcUser이며,
         // sub는 Keycloak Realm 내 사용자를 식별하는 안정적인 고유 ID다.
         if (principal instanceof OidcUser oidcUser) {
             return oidcUser.getSubject(); // Keycloak sub

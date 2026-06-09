@@ -8,11 +8,18 @@ package com.bbd.securitygateway.auth.application.model;
 
  즉, adapter.in.web 또는 adapter.in.security 계층에서
  Authentication/OidcUser를 읽어 AuthPrincipal로 변환한 뒤
- application usecase에 전달한다.
-*/
+ application use case에 전달한다.
+
+ 이 객체는 Gateway 세션 인증 결과만 표현한다.
+ User Service 기준 userId, role, tenancyType, status, permission 같은
+ ERP 인가 정보는 포함하지 않는다.
+
+ 해당 ERP 인가 정보는 각 MSA의 경량 인가 프레임워크가
+ Redis의 UserSnapshot을 조회해서 판단한다.
+ */
 
 /*
- username: 로그인 식별자
+ username: 로그인 식별자.
 
  보통 OIDC preferred_username claim에서 가져온다.
 
@@ -21,14 +28,13 @@ package com.bbd.securitygateway.auth.application.model;
  employeeNumber와 달라질 수 있다.
 
  따라서 username은 User Service의 ERP 사용자와 연결하는 최종 기준으로 사용하지 않는다.
- ERP 사용자 매핑은 Keycloak의 고유 식별자인 keycloakSub를 우선 사용한다.
+ ERP 사용자 매핑과 UserSnapshot 조회의 기준은 Keycloak의 고유 식별자인 keycloakSub를 우선 사용한다.
 
  예:
  - username = HQ001
  - username = csyoon
  - username = csyoon@bbd.com
  */
-
 public record AuthPrincipal(
         boolean authenticated,
         String keycloakSub,
@@ -40,7 +46,16 @@ public record AuthPrincipal(
 ) {
 
     /*
-     로그인하지 않은 사용자 상태를 표현한다.
+     인증되지 않은 사용자를 표현하는 정적 팩토리 메서드.
+
+     즉, 아래처럼 생성자를 직접 호출하는 대신
+     new AuthPrincipal(false, null, null, null, null, null, null)
+
+     다음처럼 의미가 드러나는 메서드로 생성한다.
+     AuthPrincipal.unauthenticated()
+
+     이렇게 하면 호출하는 코드에서
+     "인증되지 않은 사용자 객체를 만드는구나"를 더 명확하게 알 수 있다.
 
      예:
      - Authentication이 null인 경우
@@ -56,6 +71,47 @@ public record AuthPrincipal(
                 null,
                 null,
                 null
+        );
+    }
+
+    /*
+     인증된 사용자를 표현하는 정적 팩토리 메서드.
+
+     생성자를 직접 호출하면 첫 번째 인자인 true가 무엇을 의미하는지
+     호출하는 코드만 보고는 명확하지 않을 수 있다.
+     예: new AuthPrincipal(true, keycloakSub, username, employeeNumber, displayName, email, position)
+
+     대신 아래처럼 사용하면 현재 객체가
+     "인증된 사용자 정보"를 표현한다는 의도가 명확해진다.
+     AuthPrincipal.authenticated(
+         keycloakSub,
+         username,
+         employeeNumber,
+         displayName,
+         email,
+         position
+     )
+
+     이 메서드는 adapter 계층에서
+     Spring Security Authentication/OidcUser를 읽어
+     application 계층이 사용할 수 있는 AuthPrincipal로 변환할 때 사용한다.
+     */
+    public static AuthPrincipal authenticated(
+            String keycloakSub,
+            String username,
+            String employeeNumber,
+            String displayName,
+            String email,
+            String position
+    ) {
+        return new AuthPrincipal(
+                true,
+                keycloakSub,
+                username,
+                employeeNumber,
+                displayName,
+                email,
+                position
         );
     }
 }
