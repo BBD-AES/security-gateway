@@ -15,8 +15,11 @@ package com.bbd.securitygateway.auth.application.model;
 
  이 모델은 ERP 사용자 등록 여부, role, tenancyType, status, permission을 판단하지 않는다.
 
- 해당 ERP 인가 정보는 각 MSA의 경량 인가 프레임워크가
- Redis의 UserSnapshot을 조회해서 판단한다.
+ 해당 ERP 인가 정보는 각 MSA가 Access Token을 직접 검증한 뒤,
+ JWT sub를 기준으로 Redis UserSnapshot을 조회해서 판단한다.
+
+ Gateway는 하위 MSA 호출 시 Access Token Relay를 통해
+ Authorization: Bearer <access-token>을 전달한다.
  */
 public record CurrentUserResult(
 
@@ -26,15 +29,22 @@ public record CurrentUserResult(
         /*
          Keycloak 사용자의 고유 식별자.
          OIDC sub claim 값이다.
-         ERP 사용자 매핑과 UserSnapshot 조회의 기준 식별자로 사용할 수 있다.
+
+         Gateway에서는 현재 로그인 사용자의 기본 식별 정보로만 사용한다.
+         각 MSA에서는 Access Token 검증 후 JWT sub를 꺼내
+         Redis UserSnapshot 조회 기준으로 사용한다.
          */
         String keycloakSub,
 
         /*
          Keycloak/OIDC의 로그인 식별자.
          보통 preferred_username claim에서 가져온다.
+
          현재는 사번처럼 보일 수 있지만,
-         ERP 사용자 매핑의 최종 기준은 keycloakSub이다.
+         로그인 정책 변경에 따라 이메일, 계정명 등으로 바뀔 수 있다.
+
+         따라서 ERP 사용자 매핑이나 Redis UserSnapshot 조회의 최종 기준으로 사용하지 않는다.
+         최종 사용자 식별 기준은 Keycloak sub이다.
          */
         String username,
 
@@ -72,8 +82,12 @@ public record CurrentUserResult(
 
     /*
      인증된 사용자 상태를 표현하는 정적 팩토리 메서드.
+
      Gateway는 AuthPrincipal에 들어 있는 Keycloak/OIDC 기본 정보만 사용한다.
      User Service 기준 role, tenancy, status, permission은 여기서 판단하지 않는다.
+
+     실제 ERP 인가는 각 MSA가 Access Token을 검증한 뒤,
+     JWT sub 기준으로 Redis UserSnapshot을 조회해서 판단한다.
      */
     public static CurrentUserResult authenticated(AuthPrincipal principal) {
         return new CurrentUserResult(

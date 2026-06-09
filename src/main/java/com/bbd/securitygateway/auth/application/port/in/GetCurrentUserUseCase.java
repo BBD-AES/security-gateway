@@ -13,10 +13,11 @@ import com.bbd.securitygateway.auth.application.model.CurrentUserResult;
  - Keycloak/OIDC 인증 사용자 기본 정보 확인
  - 현재 사용자 상태를 CurrentUserResult로 반환
 
- 이 유스케이스는 ERP 사용자 등록 여부, role, tenancy, status, permission을 판단하지 않는다.
+ 해당 ERP 인가 판단은 각 MSA가 Access Token을 직접 검증한 뒤,
+ JWT sub를 기준으로 Redis UserSnapshot을 조회해서 수행한다.
 
- 해당 ERP 인가 판단은 각 MSA의 경량 인가 프레임워크가
- Redis의 UserSnapshot을 조회해서 수행한다.
+ Gateway는 하위 MSA 호출 시 Access Token Relay를 통해
+ Authorization: Bearer <access-token>을 전달한다.
 
  application 계층은 웹 응답 DTO를 직접 반환하지 않는다.
  따라서 CurrentUserResponse를 만들지 않고,

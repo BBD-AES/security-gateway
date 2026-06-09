@@ -20,8 +20,8 @@ import org.springframework.stereotype.Service;
  1. 인증되지 않은 사용자이면 unauthenticated 결과 반환
  2. 인증된 사용자이면 AuthPrincipal에 담긴 Keycloak/OIDC 기본 정보를 CurrentUserResult로 변환
 
- ERP 사용자 등록 여부, role, tenancy, status, permission 판단은
- 각 MSA의 경량 인가 프레임워크가 Redis의 UserSnapshot을 조회해서 수행한다.
+ Gateway는 하위 MSA 호출 시 Access Token Relay를 통해
+ Authorization: Bearer <access-token>을 전달한다.
  */
 @Service
 public class GetCurrentUserService implements GetCurrentUserUseCase {
