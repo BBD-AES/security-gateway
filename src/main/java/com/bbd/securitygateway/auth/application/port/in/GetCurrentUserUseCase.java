@@ -4,16 +4,19 @@ import com.bbd.securitygateway.auth.application.model.AuthPrincipal;
 import com.bbd.securitygateway.auth.application.model.CurrentUserResult;
 
 /*
- 현재 요청 사용자의 상태를 조회하는 유스케이스.
+ 현재 요청 사용자의 Gateway 세션 인증 상태를 조회하는 유스케이스.
 
  이 유스케이스는 adapter.in.web 계층의 /api/auth/me에서 호출할 수 있다.
 
  역할:
- - 로그인 여부 확인
- - Keycloak 인증 사용자 정보 확인
- - User Snapshot 조회
- - User Service 등록 여부 확인
+ - Gateway 세션 기준 로그인 여부 확인
+ - Keycloak/OIDC 인증 사용자 기본 정보 확인
  - 현재 사용자 상태를 CurrentUserResult로 반환
+
+ 이 유스케이스는 ERP 사용자 등록 여부, role, tenancy, status, permission을 판단하지 않는다.
+
+ 해당 ERP 인가 판단은 각 MSA의 경량 인가 프레임워크가
+ Redis의 UserSnapshot을 조회해서 수행한다.
 
  application 계층은 웹 응답 DTO를 직접 반환하지 않는다.
  따라서 CurrentUserResponse를 만들지 않고,
