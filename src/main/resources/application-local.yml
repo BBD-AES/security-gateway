@@ -50,58 +50,73 @@ spring:
             - id: user-service
               uri: ${USER_SERVICE_URI}
               predicates:
-                - Path=/user/api/v1/users/**,/user/api/v2/users/**
-
+                - Path=/api/v1/users/**,/api/v2/users/**
+              filters:
+                - TokenRelay=
 
             - id: user-service-swagger
               uri: ${USER_SERVICE_URI}
               predicates:
                 - Path=/user/swagger-ui/**,/user/swagger-ui.html,/user/v3/api-docs/**
-
+              filters:
+                - StripPrefix=1
 
             - id: item-service
               uri: ${ITEM_SERVICE_URI}
               predicates:
-                - Path=/item/api/v1/items/**,/item/api/v2/items/**
+                - Path=/api/v1/items/**,/api/v2/items/**
+              filters:
+                - TokenRelay=
 
             - id: item-service-swagger
               uri: ${ITEM_SERVICE_URI}
               predicates:
                 - Path=/item/swagger-ui/**,/item/swagger-ui.html,/item/v3/api-docs/**
-
+              filters:
+                - StripPrefix=1
 
             - id: inventory-service
               uri: ${INVENTORY_SERVICE_URI}
               predicates:
-                - Path=/inventory/api/v1/inventory/**,/inventory/api/v2/inventory/**
+                - Path=/api/v1/inventory/**,/api/v2/inventory/**
+              filters:
+                - TokenRelay=
 
             - id: inventory-service-swagger
               uri: ${INVENTORY_SERVICE_URI}
               predicates:
                 - Path=/inventory/swagger-ui/**,/inventory/swagger-ui.html,/inventory/v3/api-docs/**
-
+              filters:
+                - StripPrefix=1
 
             - id: procurement-service
               uri: ${PROCUREMENT_SERVICE_URI}
               predicates:
-                - Path=/procurement/api/v1/procurements/**,/procurement/api/v2/procurements/**
+                - Path=/api/v1/procurements/**,/api/v2/procurements/**
+              filters:
+                - TokenRelay=
 
             - id: procurement-service-swagger
               uri: ${PROCUREMENT_SERVICE_URI}
               predicates:
                 - Path=/procurement/swagger-ui/**,/procurement/swagger-ui.html,/procurement/v3/api-docs/**
-
+              filters:
+                - StripPrefix=1
 
             - id: sales-service
               uri: ${SALES_SERVICE_URI}
               predicates:
-                - Path=/sales/api/v1/sales/**,/sales/api/v2/sales/**
+                - Path=/api/v1/sales/**,/api/v2/sales/**
+              filters:
+                - PrefixPath=/sales
+                - TokenRelay=
 
             - id: sales-service-swagger
               uri: ${SALES_SERVICE_URI}
               predicates:
                 - Path=/sales/swagger-ui/**,/sales/swagger-ui.html,/sales/v3/api-docs/**
-
+              filters:
+                - StripPrefix=1
 springdoc:
   swagger-ui:
     tags-sorter: alpha
