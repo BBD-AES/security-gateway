@@ -144,7 +144,7 @@ public class SecurityConfig {
 //                                "/item/api/v1/items/**",
 //                                "/item/api/v2/items/**",
 //                                "/health"
-                                "/*"
+                                "/**"
                         ).permitAll()
                         // 나머지는 전부 로그인을 거쳐야함
                         // /api/csrf는 로그인 후 호출한다.
