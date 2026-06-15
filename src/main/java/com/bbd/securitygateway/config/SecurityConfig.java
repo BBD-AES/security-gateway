@@ -132,18 +132,19 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         // 아래는 로그인 없이 허용
                         .requestMatchers(
-                                "/api/auth/me",
-                                "/error",
-                                "/api/v1/items/**",
-                                "/api/v2/items/**",
-                                "/swagger-ui/**",
-                                "/swagger-ui.html",
-                                "/v3/api-docs/**",
-                                "/item/swagger-ui/**",
-                                "/item/v3/api-docs/**",
-                                "/item/api/v1/items/**",
-                                "/item/api/v2/items/**",
-                                "/health"
+//                                "/api/auth/me",
+//                                "/error",
+//                                "/api/v1/items/**",
+//                                "/api/v2/items/**",
+//                                "/swagger-ui/**",
+//                                "/swagger-ui.html",
+//                                "/v3/api-docs/**",
+//                                "/item/swagger-ui/**",
+//                                "/item/v3/api-docs/**",
+//                                "/item/api/v1/items/**",
+//                                "/item/api/v2/items/**",
+//                                "/health"
+                                "/*"
                         ).permitAll()
                         // 나머지는 전부 로그인을 거쳐야함
                         // /api/csrf는 로그인 후 호출한다.
