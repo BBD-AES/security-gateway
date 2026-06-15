@@ -26,6 +26,8 @@ spring:
       host: ${REDIS_HOST:bbd-redis}
       port: ${REDIS_PORT:6379}
       password: ${REDIS_PASSWORD:}
+      ssl:
+        enabled: ${REDIS_SSL_ENABLED:true}
 
   security:
     oauth2:
