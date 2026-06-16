@@ -130,25 +130,26 @@ public class SecurityConfig {
                 // 2. 어떤 URL은 로그인 없이 허용할지 정한다. -> 나머지 전부
                 // auth -> Spring Security가 넘겨준 URL 인가 규칙 설정 객체
                 .authorizeHttpRequests(auth -> auth
-                        // 아래는 로그인 없이 허용
-                        .requestMatchers(
-                                "/api/auth/me",
-                                "/error",
-                                "/api/v1/items/**",
-                                "/api/v2/items/**",
-                                "/swagger-ui/**",
-                                "/swagger-ui.html",
-                                "/v3/api-docs/**",
-                                "/item/swagger-ui/**",
-                                "/item/v3/api-docs/**",
-                                "/item/api/v1/items/**",
-                                "/item/api/v2/items/**",
-                                "/health"
-                        ).permitAll()
-                        // 나머지는 전부 로그인을 거쳐야함
-                        // /api/csrf는 로그인 후 호출한다.
-                        // anyRequest().authenticated()에 의해 인증된 사용자만 CSRF 토큰을 받을 수 있다.
-                        .anyRequest().authenticated()
+                                // 아래는 로그인 없이 허용
+                                .requestMatchers(
+//                                "/api/auth/me",
+//                                "/error",
+//                                "/api/v1/items/**",
+//                                "/api/v2/items/**",
+//                                "/swagger-ui/**",
+//                                "/swagger-ui.html",
+//                                "/v3/api-docs/**",
+//                                "/item/swagger-ui/**",
+//                                "/item/v3/api-docs/**",
+//                                "/item/api/v1/items/**",
+//                                "/item/api/v2/items/**",
+//                                "/health"
+                                        "/**"
+                                ).permitAll()
+                                // 나머지는 전부 로그인을 거쳐야함
+                                // /api/csrf는 로그인 후 호출한다.
+                                // anyRequest().authenticated()에 의해 인증된 사용자만 CSRF 토큰을 받을 수 있다.
+                                .anyRequest().authenticated()
                 )
 
 
@@ -194,9 +195,12 @@ public class SecurityConfig {
                 .cors(cors -> cors.configurationSource(corsConfigurationSource))
                 // 2) CSRF
                 // 웹은 세션 기반 CSRF 사용
-                .csrf(csrf -> csrf
-                        .csrfTokenRepository(csrfTokenRepository)
-                )
+
+                // 개발/Swagger 테스트용: 전체 CSRF 비활성화
+                .csrf(AbstractHttpConfigurer::disable)
+//                .csrf(csrf -> csrf
+//                        .csrfTokenRepository(csrfTokenRepository)
+//                )
 
                 // 7. 세션을 쓸지, JWT만 쓸지 정한다.
                 // 현재 oauth2Login을 사용하면서
