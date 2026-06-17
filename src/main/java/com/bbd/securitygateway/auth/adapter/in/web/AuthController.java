@@ -6,7 +6,10 @@ import com.bbd.securitygateway.auth.application.model.AuthPrincipal;
 import com.bbd.securitygateway.auth.application.model.CurrentUserResult;
 import com.bbd.securitygateway.auth.application.port.in.GetCurrentUserUseCase;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.oauth2.client.OAuth2AuthorizedClient;
+import org.springframework.security.oauth2.client.annotation.RegisteredOAuth2AuthorizedClient;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -63,5 +66,17 @@ public class AuthController {
         CurrentUserResult result = getCurrentUserUseCase.getCurrentUser(principal);
 
         return CurrentUserResponse.from(result);
+    }
+
+    @GetMapping("/api/auth/token")
+    public ResponseEntity<String> token(
+            @RegisteredOAuth2AuthorizedClient("keycloak")
+            OAuth2AuthorizedClient authorizedClient
+    ) {
+        if (authorizedClient == null || authorizedClient.getAccessToken() == null) {
+            return ResponseEntity.status(401).body("로그인이 필요합니다.");
+        }
+
+        return ResponseEntity.ok(authorizedClient.getAccessToken().getTokenValue());
     }
 }

@@ -59,64 +59,40 @@ spring:
         webmvc:
           routes:
             - id: user-service
-              uri: ${USER_SERVICE_URI}
+              uri: ${USER_SERVICE_URI:http://bbd-user:8080}
               predicates:
-                - Path=/user/api/v1/users/**,/user/api/v2/users/**
+                - Path=/user/**
               filters:
                 - TokenRelay=
-
-            - id: user-service-swagger
-              uri: ${USER_SERVICE_URI}
-              predicates:
-                - Path=/user/swagger-ui/**,/user/swagger-ui.html,/user/v3/api-docs/**
 
             - id: item-service
-              uri: ${ITEM_SERVICE_URI}
+              uri: ${ITEM_SERVICE_URI:http://bbd-item:8080}
               predicates:
-                - Path=/item/api/v1/items/**,/item/api/v2/items/**
+                - Path=/item/**
               filters:
                 - TokenRelay=
-
-            - id: item-service-swagger
-              uri: ${ITEM_SERVICE_URI}
-              predicates:
-                - Path=/item/swagger-ui/**,/item/swagger-ui.html,/item/v3/api-docs/**
 
             - id: inventory-service
-              uri: ${INVENTORY_SERVICE_URI}
+              uri: ${INVENTORY_SERVICE_URI:http://bbd-inventory:8080}
               predicates:
-                - Path=/inventory/api/v1/inventory/**,/inventory/api/v2/inventory/**
+                - Path=/inventory/**
               filters:
                 - TokenRelay=
-
-            - id: inventory-service-swagger
-              uri: ${INVENTORY_SERVICE_URI}
-              predicates:
-                - Path=/inventory/swagger-ui/**,/inventory/swagger-ui.html,/inventory/v3/api-docs/**
 
             - id: procurement-service
-              uri: ${PROCUREMENT_SERVICE_URI}
+              uri: ${PROCUREMENT_SERVICE_URI:http://bbd-procurement:8080}
               predicates:
-                - Path=/procurement/api/v1/procurements/**,/procurement/api/v2/procurements/**
+                - Path=/procurement/**
               filters:
                 - TokenRelay=
-
-            - id: procurement-service-swagger
-              uri: ${PROCUREMENT_SERVICE_URI}
-              predicates:
-                - Path=/procurement/swagger-ui/**,/procurement/swagger-ui.html,/procurement/v3/api-docs/**
 
             - id: sales-service
-              uri: ${SALES_SERVICE_URI}
+              uri: ${SALES_SERVICE_URI:http://bbd-sales:8080}
               predicates:
-                - Path=/sales/api/v1/sales/**,/sales/api/v2/sales/**
+                - Path=/sales/**
               filters:
                 - TokenRelay=
 
-            - id: sales-service-swagger
-              uri: ${SALES_SERVICE_URI}
-              predicates:
-                - Path=/sales/swagger-ui/**,/sales/swagger-ui.html,/sales/v3/api-docs/**
 
     httpclient:
       connect-timeout: 3000
