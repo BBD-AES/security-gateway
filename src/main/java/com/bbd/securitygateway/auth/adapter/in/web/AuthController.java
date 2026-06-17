@@ -17,6 +17,7 @@ import org.springframework.web.bind.annotation.RestController;
  현재 브라우저 사용자의 Gateway 세션 로그인 상태와
  Keycloak/OIDC 기본 사용자 정보를 반환하는 Web Adapter.
 
+
  이 컨트롤러는 adapter.in.web 계층에 속한다.
 
  역할:
