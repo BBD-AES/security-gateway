@@ -3,6 +3,7 @@ package com.bbd.securitygateway.config;
 import com.bbd.securitygateway.global.error.ApiException;
 import com.bbd.securitygateway.global.error.dto.ErrorCode;
 import jakarta.servlet.http.HttpSession;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -37,6 +38,7 @@ import java.util.List;
 // SecurityConfig 파일: 이 서버로 들어오는 HTTP 요청을 Spring Security가 어떻게 처리할지 정하는 파일
 
 // Spring Bean 설정 클래스
+@Slf4j
 @Configuration
 public class SecurityConfig {
 
@@ -340,6 +342,13 @@ public class SecurityConfig {
             // 세션이 없다면 OAuth2 AuthorizationRequest 저장/검증 또는 세션 인증 전략 흐름이 깨진 비정상 상태로 본다.
             // 따라서 새 세션을 만들어 계속 진행하지 않고, 다시 로그인하도록 돌려보낸다.
             if (session == null) {
+                // 정상적인 OAuth2 로그인 성공 흐름에서는 세션이 존재해야 한다.
+                // 세션이 없다면 인증 흐름이 비정상적으로 깨진 상황이므로 추적을 위해 경고 로그를 남긴다.
+                log.warn(
+                        "OAuth2 로그인은 성공했지만 HttpSession이 없습니다. method={}, uri={}",
+                        request.getMethod(),
+                        request.getRequestURI()
+                );
                 response.sendRedirect("http://localhost:5173/login?error=session");
                 return;
             }
@@ -373,6 +382,14 @@ public class SecurityConfig {
                             // 실제 세션 객체를 즉시 삭제한다기보다는,
                             // Spring Security가 이후 해당 세션 요청을 만료된 세션으로 인식하게 한다.
                             sessionInformation.expireNow();
+
+                            // 중복 로그인 정책에 의해 기존 세션을 만료시킨 경우다.
+                            // 세션 ID는 인증 정보로 취급될 수 있으므로 전체 값을 남기지 않고 일부만 마스킹해서 기록한다.
+                            log.info(
+                                    "중복 OAuth2 로그인으로 기존 세션을 만료 처리했습니다. currentSession={}, expiredSession={}",
+                                    maskForLog(currentSessionId),
+                                    maskForLog(sessionInformation.getSessionId())
+                            );
                         }
                     });
                 }
@@ -432,10 +449,31 @@ public class SecurityConfig {
         // 현재 인증 구조에서는 OidcUser 외 principal은 예상하지 않는다.
         // 예상하지 않은 principal로 같은 사용자 비교를 계속하면
         // 잘못된 세션 만료가 발생할 수 있으므로 실패 처리한다.
+        // 보안 세션 판단 로직과 직결되는 비정상 상태이므로 principal 타입만 로그로 남긴다.
+        log.error(
+                "OAuth2 세션 비교 중 예상하지 못한 principal 타입이 감지되었습니다. principalType={}",
+                principal == null ? "null" : principal.getClass().getName()
+        );
         throw new IllegalStateException(
                 "OIDC 로그인에서 예상하지 않은 principal 타입입니다: "
-                        + principal.getClass().getName()
+                        + (principal == null ? "null" : principal.getClass().getName())
         );
+    }
+
+    /*
+       세션 ID는 쿠키 인증에 쓰이는 민감한 값이므로 로그에 전체를 남기지 않는다.
+       운영 추적에 필요한 최소한의 구분만 가능하도록 앞/뒤 일부만 남기고 마스킹한다.
+     */
+    private String maskForLog(String value) {
+        if (value == null || value.isBlank()) {
+            return "blank";
+        }
+
+        if (value.length() <= 8) {
+            return "****";
+        }
+
+        return value.substring(0, 4) + "..." + value.substring(value.length() - 4);
     }
 
     private AuthenticationEntryPoint apiExceptionAuthenticationEntryPoint(HandlerExceptionResolver exceptionResolver) {
