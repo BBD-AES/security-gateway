@@ -2,6 +2,7 @@ package com.bbd.securitygateway.global.error;
 
 import com.bbd.securitygateway.global.error.dto.ErrorCode;
 import jakarta.servlet.http.HttpServletRequest;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -37,6 +38,7 @@ import java.time.OffsetDateTime;
     - 내부 예외 메시지, 스택트레이스, SQL 메시지 등은 클라이언트에 노출하지 않는다.
 
  */
+@Slf4j
 @RestControllerAdvice
 public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
 
@@ -83,6 +85,20 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
             Exception e,
             HttpServletRequest request
     ) {
+        /*
+         클라이언트 응답에는 내부 예외 메시지와 스택트레이스를 노출하지 않는다.
+         대신 운영자가 500 원인을 추적할 수 있도록 서버 로그에는 원본 예외를 남긴다.
+
+         @ExceptionHandler가 예외를 정상 처리하면 Spring 기본 로깅에 남지 않을 수 있으므로,
+         마지막 방어선인 이 핸들러에서 반드시 기록한다.
+         */
+        log.error(
+                "처리되지 않은 예외가 발생했습니다. method={}, uri={}",
+                request.getMethod(),
+                request.getRequestURI(),
+                e
+        );
+
         // 처리되지 않은 서버 오류는 공통 INTERNAL_ERROR 코드로 변환한다.
         ErrorCode errorCode = ErrorCode.INTERNAL_ERROR;
         ProblemDetail body = ProblemDetail.forStatus(errorCode.getStatus());
