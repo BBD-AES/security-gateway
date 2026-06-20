@@ -1,14 +1,11 @@
 package com.bbd.securitygateway.config;
 
-import com.bbd.securitygateway.global.error.ApiException;
-import com.bbd.securitygateway.global.error.dto.ErrorCode;
-import jakarta.servlet.http.HttpSession;
-import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Qualifier;
+import com.bbd.securitygateway.auth.adapter.in.security.ApiExceptionAccessDeniedHandler;
+import com.bbd.securitygateway.auth.adapter.in.security.ApiExceptionAuthenticationEntryPoint;
+import com.bbd.securitygateway.auth.adapter.in.security.OidcLoginSuccessHandler;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.annotation.Order;
-import org.springframework.http.HttpHeaders;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
@@ -16,29 +13,19 @@ import org.springframework.security.config.annotation.web.configurers.SessionMan
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.core.session.SessionRegistry;
 import org.springframework.security.core.session.SessionRegistryImpl;
-import org.springframework.security.oauth2.client.oidc.web.logout.OidcClientInitiatedLogoutSuccessHandler;
-import org.springframework.security.oauth2.client.registration.ClientRegistrationRepository;
-import org.springframework.security.oauth2.core.oidc.user.OidcUser;
-import org.springframework.security.web.DefaultRedirectStrategy;
-import org.springframework.security.web.RedirectStrategy;
-import org.springframework.security.web.AuthenticationEntryPoint;
 import org.springframework.security.web.SecurityFilterChain;
-import org.springframework.security.web.access.AccessDeniedHandler;
-import org.springframework.security.web.authentication.AuthenticationSuccessHandler;
 import org.springframework.security.web.authentication.logout.LogoutSuccessHandler;
 import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
 import org.springframework.security.web.session.HttpSessionEventPublisher;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
-import org.springframework.web.servlet.HandlerExceptionResolver;
 
 import java.util.List;
 
 // SecurityConfig 파일: 이 서버로 들어오는 HTTP 요청을 Spring Security가 어떻게 처리할지 정하는 파일
 
 // Spring Bean 설정 클래스
-@Slf4j
 @Configuration
 public class SecurityConfig {
 
@@ -81,8 +68,8 @@ public class SecurityConfig {
     public SecurityFilterChain bearerTokenSecurityFilterChain(
             HttpSecurity http,
             CorsConfigurationSource corsConfigurationSource,
-            @Qualifier("handlerExceptionResolver")
-            HandlerExceptionResolver exceptionResolver
+            ApiExceptionAuthenticationEntryPoint authenticationEntryPoint,
+            ApiExceptionAccessDeniedHandler accessDeniedHandler
     ) throws Exception {
         return http
                 // 모바일 전용 - Bearer 토큰
@@ -107,8 +94,8 @@ public class SecurityConfig {
                 // Bearer 토큰 요청의 인증/인가 실패는 컨트롤러 전에 발생하므로
                 // HandlerExceptionResolver에 ApiException을 넘겨 공통 GlobalExceptionHandler로 처리한다.
                 .exceptionHandling(exceptionHandling -> exceptionHandling
-                        .authenticationEntryPoint(apiExceptionAuthenticationEntryPoint(exceptionResolver))
-                        .accessDeniedHandler(apiExceptionAccessDeniedHandler(exceptionResolver))
+                        .authenticationEntryPoint(authenticationEntryPoint)
+                        .accessDeniedHandler(accessDeniedHandler)
                 )
 
                 // Authorization: Bearer 형식으로 전달된 Keycloak Access Token을 검증한다.
@@ -131,7 +118,8 @@ public class SecurityConfig {
     @Bean
     @Order(2)
     public SecurityFilterChain webSecurityFilterChain(HttpSecurity http,
-                                                      ClientRegistrationRepository clientRegistrationRepository,
+                                                      LogoutSuccessHandler oidcLogoutSuccessHandler,
+                                                      OidcLoginSuccessHandler oidcLoginSuccessHandler,
                                                       CorsConfigurationSource corsConfigurationSource,
                                                       SessionRegistry sessionRegistry
     ) throws Exception {
@@ -180,7 +168,7 @@ public class SecurityConfig {
                 // 사용자를 Keycloak 로그인 페이지로 리다이렉트하고,
                 // 로그인 성공 후 callback을 받아 세션을 만드는 기능
                 .oauth2Login(oauth2 -> oauth2
-                        .successHandler(oauth2LoginSuccessHandler(sessionRegistry))
+                        .successHandler(oidcLoginSuccessHandler)
                 )
                 // 5. 로그아웃은 어떻게 할지 정한다.
                 // 웹 브라우저 로그아웃은 Gateway의 /logout으로 처리한다.
@@ -202,7 +190,7 @@ public class SecurityConfig {
                         // 브라우저의 Gateway 세션 쿠키(JSESSIONID)를 삭제한다.
                         .deleteCookies("JSESSIONID")
                         // Gateway 로그아웃 성공 후 프론트 로그인 페이지로 이동한다.
-                        .logoutSuccessHandler(oidcLogoutSuccessHandler(clientRegistrationRepository))
+                        .logoutSuccessHandler(oidcLogoutSuccessHandler)
                 )
 
 
@@ -241,30 +229,6 @@ public class SecurityConfig {
                 .build();
     }
 
-
-    // Gateway 로그아웃 성공 후 실행될 OIDC 로그아웃 핸들러를 생성한다.
-    // 일반 logoutSuccessUrl은 Gateway 세션만 종료한 뒤 프론트로 이동하지만,
-    // OidcClientInitiatedLogoutSuccessHandler는 Keycloak의 end_session_endpoint로
-    // 브라우저를 redirect시켜 Keycloak SSO 세션까지 종료하도록 한다.
-    private LogoutSuccessHandler oidcLogoutSuccessHandler(
-            // Spring Security가 등록한 OAuth2/OIDC Client 정보 저장소
-            // 여기에는 yml에 설정한 Keycloak client-id, issuer-uri 등이 들어 있다.
-            // 이 정보를 이용해 Keycloak의 end_session_endpoint를 찾는다.
-            ClientRegistrationRepository clientRegistrationRepository
-    ) {
-        // OIDC RP-Initiated Logout을 처리하는 Spring Security 제공 핸들러
-        // 로그아웃 성공 시 현재 사용자의 ID Token과 ClientRegistration 정보를 이용해서
-        // Keycloak 로그아웃 URL을 생성한다.
-        OidcClientInitiatedLogoutSuccessHandler handler =
-                new OidcClientInitiatedLogoutSuccessHandler(clientRegistrationRepository);
-
-        // Keycloak 로그아웃이 끝난 뒤 최종적으로 돌아올 프론트엔드 주소를 지정한다.
-        // 이 값은 Keycloak 로그아웃 URL의 post_logout_redirect_uri 파라미터로 사용된다.
-        handler.setPostLogoutRedirectUri("http://localhost:5173/login");
-
-        // Spring Security logout 설정의 logoutSuccessHandler에 넘길 핸들러 반환
-        return handler;
-    }
 
     // cors 설정
     @Bean
@@ -323,87 +287,6 @@ public class SecurityConfig {
 
 
     /*
-       OAuth2/OIDC 로그인 성공 후 실행할 커스텀 성공 핸들러
-       목적:
-       - 같은 Keycloak 사용자로 이미 로그인된 기존 세션이 있으면 기존 세션을 만료시킨다.
-       - 새로 로그인한 현재 세션만 유지한다.
-       - 로그인 성공 후 main 페이지로 이동시킨다.
-     */
-
-    private AuthenticationSuccessHandler oauth2LoginSuccessHandler(SessionRegistry sessionRegistry) {
-        return (request, response, authentication) -> {
-
-            // 현재 로그인 요청의 HttpSession을 가져온다.
-            // false는 이미 세션이 있으면 가져오고, 없으면 null 반환이라는 의미
-            HttpSession session = request.getSession(false);
-
-
-            // 정상적인 OAuth2/OIDC 로그인 성공 흐름에서는 HttpSession이 이미 존재해야 한다.
-            // 세션이 없다면 OAuth2 AuthorizationRequest 저장/검증 또는 세션 인증 전략 흐름이 깨진 비정상 상태로 본다.
-            // 따라서 새 세션을 만들어 계속 진행하지 않고, 다시 로그인하도록 돌려보낸다.
-            if (session == null) {
-                // 정상적인 OAuth2 로그인 성공 흐름에서는 세션이 존재해야 한다.
-                // 세션이 없다면 인증 흐름이 비정상적으로 깨진 상황이므로 추적을 위해 경고 로그를 남긴다.
-                log.warn(
-                        "OAuth2 로그인은 성공했지만 HttpSession이 없습니다. method={}, uri={}",
-                        request.getMethod(),
-                        request.getRequestURI()
-                );
-                response.sendRedirect("http://localhost:5173/login?error=session");
-                return;
-            }
-
-
-            // 현재 로그인에 사용되는 세션 ID
-            String currentSessionId = session.getId();
-
-            // 현재 로그인한 사용자의 고유 식별값을 추출한다.
-            // OIDC 로그인에서는 Keycloak sub 값을 우선 사용한다.
-            String currentUserKey = extractUserKey(authentication.getPrincipal());
-
-            // SessionRegistry에 등록된 모든 principal을 순회한다.
-            // principal은 Spring Security가 세션에 저장한 인증 사용자 객체다.
-            sessionRegistry.getAllPrincipals().forEach(principal -> {
-
-                // 기존 세션에 저장된 principal에서도 사용자 고유 식별값을 추출한다.
-                String userKey = extractUserKey(principal);
-
-                // 현재 로그인한 사용자와 같은 사용자라면
-                if (currentUserKey.equals(userKey)) {
-
-                    // 해당 principal이 가진 모든 세션을 조회한다.
-                    // false는 이미 만료 처리된 세션은 제외하고 조회한다는 의미다.
-                    sessionRegistry.getAllSessions(principal, false).forEach(sessionInformation -> {
-
-                        // 현재 새로 로그인한 세션이 아닌 기존 세션이면
-                        if (!sessionInformation.getSessionId().equals(currentSessionId)) {
-
-                            // 기존 세션을 만료 처리한다.
-                            // 실제 세션 객체를 즉시 삭제한다기보다는,
-                            // Spring Security가 이후 해당 세션 요청을 만료된 세션으로 인식하게 한다.
-                            sessionInformation.expireNow();
-
-                            // 중복 로그인 정책에 의해 기존 세션을 만료시킨 경우다.
-                            // 세션 ID는 인증 정보로 취급될 수 있으므로 전체 값을 남기지 않고 일부만 마스킹해서 기록한다.
-                            log.info(
-                                    "중복 OAuth2 로그인으로 기존 세션을 만료 처리했습니다. currentSession={}, expiredSession={}",
-                                    maskForLog(currentSessionId),
-                                    maskForLog(sessionInformation.getSessionId())
-                            );
-                        }
-                    });
-                }
-            });
-            // 로그인 성공 후 main 페이지로 리다이렉트한다.
-            // defaultSuccessUrl 대신 직접 RedirectStrategy를 사용하는 이유는
-            // 위의 기존 세션 만료 로직을 실행한 뒤 원하는 위치로 보내기 위해서다.
-            RedirectStrategy redirectStrategy = new DefaultRedirectStrategy();
-            redirectStrategy.sendRedirect(request, response, "http://localhost:5173/main");
-        };
-    }
-
-
-    /*
        현재 로그인된 사용자들의 세션 정보를 추적하기 위한 저장소 Bean
        maximumSessions(1) 설정과 함께 사용되며,
        어떤 principal이 어떤 세션을 가지고 있는지를 관리한다.
@@ -431,70 +314,4 @@ public class SecurityConfig {
     }
 
 
-    /*
-       principal 객체에서 같은 사용자 여부를 판단할 고유값을 추출한다.
-       OAuth2/OIDC 로그인에서는 로그인 성공 시마다 OidcUser/DefaultOidcUser principal 객체가 새로 생성된다.
-       Keycloak의 sub 같은 안정적인 사용자 고유값을 기준으로 비교한다.
-       이 메서드는 커스텀 로그인 성공 핸들러에서
-       현재 로그인 사용자와 기존 세션 사용자들이 같은 사람인지 비교할 때 사용된다.
-     */
-    private String extractUserKey(Object principal) {
-        // 현재 Gateway는 Keycloak OIDC 로그인을 사용한다.
-        // OIDC 로그인 성공 시 principal은 OidcUser이며,
-        // sub는 Keycloak Realm 내 사용자를 식별하는 안정적인 고유 ID다.
-        if (principal instanceof OidcUser oidcUser) {
-            return oidcUser.getSubject(); // Keycloak sub
-        }
-
-        // 현재 인증 구조에서는 OidcUser 외 principal은 예상하지 않는다.
-        // 예상하지 않은 principal로 같은 사용자 비교를 계속하면
-        // 잘못된 세션 만료가 발생할 수 있으므로 실패 처리한다.
-        // 보안 세션 판단 로직과 직결되는 비정상 상태이므로 principal 타입만 로그로 남긴다.
-        log.error(
-                "OAuth2 세션 비교 중 예상하지 못한 principal 타입이 감지되었습니다. principalType={}",
-                principal == null ? "null" : principal.getClass().getName()
-        );
-        throw new IllegalStateException(
-                "OIDC 로그인에서 예상하지 않은 principal 타입입니다: "
-                        + (principal == null ? "null" : principal.getClass().getName())
-        );
-    }
-
-    /*
-       세션 ID는 쿠키 인증에 쓰이는 민감한 값이므로 로그에 전체를 남기지 않는다.
-       운영 추적에 필요한 최소한의 구분만 가능하도록 앞/뒤 일부만 남기고 마스킹한다.
-     */
-    private String maskForLog(String value) {
-        if (value == null || value.isBlank()) {
-            return "blank";
-        }
-
-        if (value.length() <= 8) {
-            return "****";
-        }
-
-        return value.substring(0, 4) + "..." + value.substring(value.length() - 4);
-    }
-
-    private AuthenticationEntryPoint apiExceptionAuthenticationEntryPoint(HandlerExceptionResolver exceptionResolver) {
-        return (request, response, authException) -> {
-            response.setHeader(HttpHeaders.WWW_AUTHENTICATE, "Bearer");
-            exceptionResolver.resolveException(
-                    request,
-                    response,
-                    null,
-                    new ApiException(ErrorCode.AUTH_UNAUTHENTICATED)
-            );
-        };
-    }
-
-    private AccessDeniedHandler apiExceptionAccessDeniedHandler(HandlerExceptionResolver exceptionResolver) {
-        return (request, response, accessDeniedException) ->
-                exceptionResolver.resolveException(
-                        request,
-                        response,
-                        null,
-                        new ApiException(ErrorCode.AUTH_FORBIDDEN)
-                );
-    }
 }

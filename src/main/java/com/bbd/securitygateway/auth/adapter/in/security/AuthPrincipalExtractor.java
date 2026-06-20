@@ -1,6 +1,7 @@
 package com.bbd.securitygateway.auth.adapter.in.security;
 
 import com.bbd.securitygateway.auth.application.model.AuthPrincipal;
+import lombok.RequiredArgsConstructor;
 import org.springframework.security.authentication.AnonymousAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.oauth2.core.oidc.user.OidcUser;
@@ -42,7 +43,10 @@ import org.springframework.stereotype.Component;
    없으면 User Service를 조회해 Snapshot을 적재한다.
  */
 @Component
+@RequiredArgsConstructor
 public class AuthPrincipalExtractor {
+
+    private final OidcUserSubjectExtractor subjectExtractor;
 
     /*
      Spring Security Authentication에서 현재 인증 사용자 정보를 추출한다.
@@ -80,8 +84,15 @@ public class AuthPrincipalExtractor {
          - position: 직책/직무 claim
          */
         if (principal instanceof OidcUser oidcUser) {
+            String subject = subjectExtractor.extract(oidcUser)
+                    .orElse(null);
+
+            if (subject == null) {
+                return AuthPrincipal.unauthenticated();
+            }
+
             return AuthPrincipal.authenticated(
-                    oidcUser.getSubject(),
+                    subject,
                     oidcUser.getPreferredUsername(),
                     oidcUser.getClaimAsString("employee_number"),
                     oidcUser.getClaimAsString("name"),
