@@ -5,6 +5,8 @@ import com.bbd.securitygateway.auth.adapter.in.web.response.CurrentUserResponse;
 import com.bbd.securitygateway.auth.application.model.AuthPrincipal;
 import com.bbd.securitygateway.auth.application.model.CurrentUserResult;
 import com.bbd.securitygateway.auth.application.port.in.GetCurrentUserUseCase;
+import com.bbd.securitygateway.global.error.ApiException;
+import com.bbd.securitygateway.global.error.dto.ErrorCode;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
@@ -75,7 +77,7 @@ public class AuthController {
             OAuth2AuthorizedClient authorizedClient
     ) {
         if (authorizedClient == null || authorizedClient.getAccessToken() == null) {
-            return ResponseEntity.status(401).body("로그인이 필요합니다.");
+            throw new ApiException(ErrorCode.AUTH_UNAUTHENTICATED);
         }
 
         return ResponseEntity.ok(authorizedClient.getAccessToken().getTokenValue());

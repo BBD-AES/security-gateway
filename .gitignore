@@ -52,3 +52,4 @@ src/main/resources/application-*.properties
 ### env 파일
 .env.local
 .env.public
+.env

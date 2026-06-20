@@ -1,9 +1,13 @@
 package com.bbd.securitygateway.config;
 
+import com.bbd.securitygateway.global.error.ApiException;
+import com.bbd.securitygateway.global.error.dto.ErrorCode;
 import jakarta.servlet.http.HttpSession;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.annotation.Order;
+import org.springframework.http.HttpHeaders;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
@@ -16,7 +20,9 @@ import org.springframework.security.oauth2.client.registration.ClientRegistratio
 import org.springframework.security.oauth2.core.oidc.user.OidcUser;
 import org.springframework.security.web.DefaultRedirectStrategy;
 import org.springframework.security.web.RedirectStrategy;
+import org.springframework.security.web.AuthenticationEntryPoint;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.access.AccessDeniedHandler;
 import org.springframework.security.web.authentication.AuthenticationSuccessHandler;
 import org.springframework.security.web.authentication.logout.LogoutSuccessHandler;
 import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
@@ -24,6 +30,7 @@ import org.springframework.security.web.session.HttpSessionEventPublisher;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
+import org.springframework.web.servlet.HandlerExceptionResolver;
 
 import java.util.List;
 
@@ -71,7 +78,9 @@ public class SecurityConfig {
     @Order(1)
     public SecurityFilterChain bearerTokenSecurityFilterChain(
             HttpSecurity http,
-            CorsConfigurationSource corsConfigurationSource
+            CorsConfigurationSource corsConfigurationSource,
+            @Qualifier("handlerExceptionResolver")
+            HandlerExceptionResolver exceptionResolver
     ) throws Exception {
         return http
                 // 모바일 전용 - Bearer 토큰
@@ -92,6 +101,12 @@ public class SecurityConfig {
                 // 세션 저장 x
                 .sessionManagement(session -> session
                         .sessionCreationPolicy(SessionCreationPolicy.STATELESS)
+                )
+                // Bearer 토큰 요청의 인증/인가 실패는 컨트롤러 전에 발생하므로
+                // HandlerExceptionResolver에 ApiException을 넘겨 공통 GlobalExceptionHandler로 처리한다.
+                .exceptionHandling(exceptionHandling -> exceptionHandling
+                        .authenticationEntryPoint(apiExceptionAuthenticationEntryPoint(exceptionResolver))
+                        .accessDeniedHandler(apiExceptionAccessDeniedHandler(exceptionResolver))
                 )
 
                 // Authorization: Bearer 형식으로 전달된 Keycloak Access Token을 검증한다.
@@ -219,7 +234,8 @@ public class SecurityConfig {
                 )
 
                 // 8. 인증 실패 / 권한 실패 시 어떻게 응답할지 정한다.
-                // 임시 생략
+                // 웹 브라우저 요청은 OAuth2 로그인/리다이렉트 흐름을 유지한다.
+                // Bearer 토큰 요청의 401/403 JSON 응답은 bearerTokenSecurityFilterChain에서 처리한다.
                 .build();
     }
 
@@ -420,5 +436,27 @@ public class SecurityConfig {
                 "OIDC 로그인에서 예상하지 않은 principal 타입입니다: "
                         + principal.getClass().getName()
         );
+    }
+
+    private AuthenticationEntryPoint apiExceptionAuthenticationEntryPoint(HandlerExceptionResolver exceptionResolver) {
+        return (request, response, authException) -> {
+            response.setHeader(HttpHeaders.WWW_AUTHENTICATE, "Bearer");
+            exceptionResolver.resolveException(
+                    request,
+                    response,
+                    null,
+                    new ApiException(ErrorCode.AUTH_UNAUTHENTICATED)
+            );
+        };
+    }
+
+    private AccessDeniedHandler apiExceptionAccessDeniedHandler(HandlerExceptionResolver exceptionResolver) {
+        return (request, response, accessDeniedException) ->
+                exceptionResolver.resolveException(
+                        request,
+                        response,
+                        null,
+                        new ApiException(ErrorCode.AUTH_FORBIDDEN)
+                );
     }
 }
