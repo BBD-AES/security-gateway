@@ -15,7 +15,6 @@ import org.springframework.security.core.session.SessionRegistry;
 import org.springframework.security.core.session.SessionRegistryImpl;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.logout.LogoutSuccessHandler;
-import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
 import org.springframework.security.web.session.HttpSessionEventPublisher;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
@@ -49,7 +48,8 @@ public class SecurityConfig {
     - 웹: Gateway 세션 종료 + Keycloak OIDC 로그아웃
     - 앱/토큰 요청: 서버 세션이 없으므로 기본적으로 클라이언트 토큰 삭제 또는 별도 revoke 정책 사용
     6. CSRF/CORS를 어떻게 처리할지 정한다.
-    - 웹: JSESSIONID 쿠키 기반이므로 CSRF 방어 적용
+    - 웹: JSESSIONID 쿠키 기반이므로 운영 전에는 CSRF 방어를 다시 적용해야 한다.
+      현재는 Swagger Try it out 기반 MSA API 검증을 위해 임시로 비활성화한다.
     - 앱/토큰 요청: Authorization 헤더 기반 stateless 인증이므로 CSRF 비활성화
     7. 세션을 쓸지, JWT만 쓸지 정한다.
     - 웹: IF_REQUIRED, JSESSIONID 세션 사용
@@ -124,12 +124,6 @@ public class SecurityConfig {
                                                       SessionRegistry sessionRegistry
     ) throws Exception {
 
-        CookieCsrfTokenRepository csrfTokenRepository =
-                CookieCsrfTokenRepository.withHttpOnlyFalse();
-
-        csrfTokenRepository.setCookiePath("/");
-
-
         return http
                 // 1. 어떤 URL은 로그인 없이 허용할지 정한다. -> 에러
                 // 2. 어떤 URL은 로그인 없이 허용할지 정한다. -> 나머지 전부
@@ -199,13 +193,16 @@ public class SecurityConfig {
                 // 웹 브라우저는 Gateway와 origin이 다르면 CORS 설정이 필요하다.
                 .cors(cors -> cors.configurationSource(corsConfigurationSource))
                 // 2) CSRF
-                // 웹은 세션 기반 CSRF 사용
-
-                // 개발/Swagger 테스트용: 전체 CSRF 비활성화
+                // Gateway는 웹 브라우저와 JSESSIONID 세션 쿠키를 사용하므로
+                // 운영 기준으로는 CSRF 보호가 필요하다.
+                //
+                // 다만 현재는 각 MSA API를 Swagger Try it out으로 검증하는 개발 단계다.
+                // Try it out까지 허용하려고 /item/**, /sales/** 같은 주요 MSA 라우트를
+                // CSRF 예외로 넓게 빼면 보호 범위가 불명확해진다.
+                //
+                // 그래서 개발 기간에는 전체 비활성화 상태를 명시적으로 유지한다.
+                // 운영 전에는 CookieCsrfTokenRepository 기반 CSRF 보호를 다시 활성화해야 한다.
                 .csrf(AbstractHttpConfigurer::disable)
-//                .csrf(csrf -> csrf
-//                        .csrfTokenRepository(csrfTokenRepository)
-//                )
 
                 // 7. 세션을 쓸지, JWT만 쓸지 정한다.
                 // 현재 oauth2Login을 사용하면서
