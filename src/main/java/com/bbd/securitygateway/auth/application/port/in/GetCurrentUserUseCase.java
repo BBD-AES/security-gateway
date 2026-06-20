@@ -20,11 +20,14 @@ import com.bbd.securitygateway.auth.application.model.CurrentUserResult;
  Authorization: Bearer <access-token>을 전달한다.
 
  application 계층은 웹 응답 DTO를 직접 반환하지 않는다.
- 따라서 CurrentUserResponse를 만들지 않고,
- CurrentUserResult라는 application 결과 모델을 반환한다.
+ 이 유스케이스는 CurrentUserResult라는 application 결과 모델을 반환한다.
 
- adapter.in.web 계층은 CurrentUserResult를 받아
- CurrentUserResponse로 변환한 뒤 클라이언트에 응답한다.
+ 다만 /api/auth/me는 현재 CurrentUserResult와 외부 JSON 응답 스키마가
+ 완전히 같은 단순 조회 슬라이스이다.
+ 그래서 adapter.in.web 계층에서 별도 Response DTO로 한 번 더 복사하지 않고,
+ CurrentUserResult를 그대로 응답으로 사용한다.
+ 응답 스키마가 application 결과 모델과 달라지는 시점에는
+ adapter.in.web 전용 Response DTO를 다시 분리한다.
  */
 public interface GetCurrentUserUseCase {
 

@@ -11,7 +11,13 @@ package com.bbd.securitygateway.auth.application.model;
  - GetCurrentUserUseCase의 반환 모델
  - Gateway 세션 기준 로그인 여부 표현
  - Keycloak/OIDC에서 얻은 기본 사용자 정보 표현
- - adapter.in.web 계층에서 CurrentUserResponse로 변환됨
+
+ 현재 /api/auth/me의 외부 응답 필드도 이 모델과 완전히 같다.
+ 별도 CurrentUserResponse를 두면 같은 필드를 한 번 더 복사하는 매핑만 생기므로,
+ 이 단순 조회 슬라이스에서는 이 결과 모델을 그대로 JSON 응답으로 사용한다.
+
+ 단, 나중에 외부 응답 스키마가 application 결과 모델과 달라지거나
+ 웹 응답 전용 필드/포맷이 필요해지면 adapter.in.web 전용 Response DTO를 다시 분리한다.
 
  이 모델은 ERP 사용자 등록 여부, role, tenancyType, status, permission을 판단하지 않는다.
 

@@ -1,7 +1,6 @@
 package com.bbd.securitygateway.auth.adapter.in.web;
 
 import com.bbd.securitygateway.auth.adapter.in.security.AuthPrincipalExtractor;
-import com.bbd.securitygateway.auth.adapter.in.web.response.CurrentUserResponse;
 import com.bbd.securitygateway.auth.application.model.AuthPrincipal;
 import com.bbd.securitygateway.auth.application.model.CurrentUserResult;
 import com.bbd.securitygateway.auth.application.port.in.GetCurrentUserUseCase;
@@ -26,7 +25,7 @@ import org.springframework.web.bind.annotation.RestController;
  - Spring Security가 넘겨준 Authentication을 받는다.
  - Authentication을 AuthPrincipal로 변환한다.
  - application use case를 호출한다.
- - application 결과 모델인 CurrentUserResult를 CurrentUserResponse로 변환해 반환한다.
+ - application 결과 모델인 CurrentUserResult를 그대로 반환한다.
 
  이 컨트롤러는 User Service를 직접 호출하지 않는다.
  Redis의 UserSnapshot도 조회하지 않는다.
@@ -60,15 +59,19 @@ public class AuthController {
      1. Spring Security가 Authentication을 메서드 파라미터로 넘겨준다.
      2. AuthPrincipalExtractor가 Authentication을 AuthPrincipal로 변환한다.
      3. GetCurrentUserUseCase가 Gateway 기준 현재 사용자 상태를 판단한다.
-     4. CurrentUserResult를 CurrentUserResponse로 변환해 응답한다.
+     4. CurrentUserResult를 그대로 JSON 응답으로 반환한다.
+
+     이 슬라이스는 현재 화면 표시용 로그인 상태 조회만 담당한다.
+     CurrentUserResult와 별도 Response DTO가 완전히 같은 필드를 가지면
+     단순 복사 매핑만 늘어나므로 여기서는 결과 모델을 직접 응답으로 사용한다.
+     나중에 외부 응답 스키마가 application 결과 모델과 달라지면
+     그때 adapter.in.web 전용 Response DTO를 다시 분리한다.
      */
     @GetMapping("/api/auth/me")
-    public CurrentUserResponse me(Authentication authentication) {
+    public CurrentUserResult me(Authentication authentication) {
         AuthPrincipal principal = authPrincipalExtractor.extract(authentication);
 
-        CurrentUserResult result = getCurrentUserUseCase.getCurrentUser(principal);
-
-        return CurrentUserResponse.from(result);
+        return getCurrentUserUseCase.getCurrentUser(principal);
     }
 
     @GetMapping("/api/auth/token")
