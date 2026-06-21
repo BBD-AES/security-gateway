@@ -29,40 +29,22 @@ import java.util.List;
 public class SecurityConfig {
 
     /*
-    SecurityConfig 파일: 이 서버로 들어오는 HTTP 요청을 Spring Security가 어떻게 처리할지 정하는 파일
-    이 설정에서는 요청 성격에 따라 SecurityFilterChain을 분리한다.
-    1) Authorization: Bearer 토큰이 있는 요청
-    → 모바일/앱 또는 토큰 기반 API 요청으로 보고 JWT Resource Server 방식으로 처리한다.
-    2) Bearer 토큰이 없는 일반 브라우저 요청
-    → 웹 요청으로 보고 OAuth2/OIDC 로그인 + JSESSIONID 세션 방식으로 처리한다.
+    1. Authorization: Bearer 토큰이 있는 요청
+    모바일/앱 또는 토큰 기반 API 요청으로 보고 JWT Resource Server 방식으로 처리한다.
 
-    각 SecurityFilterChain에서 정하는 것
-    1. 어떤 URL은 로그인 없이 허용할지 정한다.
-    2. 어떤 URL은 인증이 필요할지 정한다.
-    3. 어떤 URL은 특정 Role이 있어야 접근 가능한지 정한다.
-    현재 Gateway에서는 Role 기반 인가는 최소화하고, 세부 인가는 각 MSA에서 처리한다.
-    4. 인증 방식이 무엇인지 정한다.
-    - 웹: oauth2Login() 기반 OIDC 로그인
-    - 앱/토큰 요청: oauth2ResourceServer().jwt() 기반 Bearer Token 검증
-    5. 로그아웃을 어떻게 처리할지 정한다.
+    2. Bearer 토큰이 없는 일반 브라우저 요청
+    웹 요청으로 보고 OAuth2/OIDC 로그인 + JSESSIONID 세션 방식으로 처리한다.
+
+    3. 로그아웃 처리
     - 웹: Gateway 세션 종료 + Keycloak OIDC 로그아웃
     - 앱/토큰 요청: 서버 세션이 없으므로 기본적으로 클라이언트 토큰 삭제 또는 별도 revoke 정책 사용
-    6. CSRF/CORS를 어떻게 처리할지 정한다.
-    - 웹: JSESSIONID 쿠키 기반이므로 운영 전에는 CSRF 방어를 다시 적용해야 한다.
-      현재는 Swagger Try it out 기반 MSA API 검증을 위해 임시로 비활성화한다.
-    - 앱/토큰 요청: Authorization 헤더 기반 stateless 인증이므로 CSRF 비활성화
-    7. 세션을 쓸지, JWT만 쓸지 정한다.
-    - 웹: IF_REQUIRED, JSESSIONID 세션 사용
-    - 앱/토큰 요청: STATELESS, 세션 미사용
-    8. 인증 실패 / 권한 실패 시 어떻게 응답할지 정한다.
-    - 웹: 로그인 페이지 또는 프론트 경로로 리다이렉트
-    - 앱/토큰 요청: 401/403 JSON 응답이 적합하다.
 
-    이 Bean들을 등록하면 Spring Boot의 기본 SecurityFilterChain 대신
-    내가 직접 정의한 보안 규칙이 적용된다.
+    4. CSRF/CORS를 어떻게 처리할지 정한다.
+    - 웹: JSESSIONID 쿠키 기반이므로 운영 전에는 CSRF 방어를 다시 적용해야 한다.
+    - 앱/토큰 요청: Authorization 헤더 기반 stateless 인증이므로 CSRF 비활성화
     */
 
-    // 모바일 전용
+    // 모바일 전용 + swagger
     @Bean
     @Order(1)
     public SecurityFilterChain bearerTokenSecurityFilterChain(
@@ -73,6 +55,7 @@ public class SecurityConfig {
     ) throws Exception {
         return http
                 // 모바일 전용 - Bearer 토큰
+                // Authorization: Bearer 헤더가 붙어 있는 경우에만 이 SecurityFilterChain을 적용
                 .securityMatcher(request -> {
                     String authorization = request.getHeader("Authorization");
                     return authorization != null
@@ -94,19 +77,13 @@ public class SecurityConfig {
                 // Bearer 토큰 요청의 인증/인가 실패는 컨트롤러 전에 발생하므로
                 // HandlerExceptionResolver에 ApiException을 넘겨 공통 GlobalExceptionHandler로 처리한다.
                 .exceptionHandling(exceptionHandling -> exceptionHandling
+                        // 인증 시 오류
                         .authenticationEntryPoint(authenticationEntryPoint)
+                        // 인가 시 오류 -> 거의 없음
                         .accessDeniedHandler(accessDeniedHandler)
                 )
 
                 // Authorization: Bearer 형식으로 전달된 Keycloak Access Token을 검증한다.
-                // 이 설정은 모바일 로그인 자체를 처리하는 것이 아니라,
-                // 모바일 앱이 이미 발급받아 보낸 JWT를 API 요청마다 검증하는 Resource Server 설정이다.
-                // 검증에 성공하면 해당 요청 동안 사용할 JwtAuthenticationToken이 생성된다.
-                // Authorization: Bearer <JWT>
-                // Keycloak issuer-uri 기준으로 JWT 검증
-                // 서명 검증
-                // 만료 시간 검증
-                // issuer 검증
                 // JwtAuthenticationToken 생성
                 .oauth2ResourceServer(resourceServer -> resourceServer
                         .jwt(Customizer.withDefaults())
@@ -125,9 +102,6 @@ public class SecurityConfig {
     ) throws Exception {
 
         return http
-                // 1. 어떤 URL은 로그인 없이 허용할지 정한다. -> 에러
-                // 2. 어떤 URL은 로그인 없이 허용할지 정한다. -> 나머지 전부
-                // auth -> Spring Security가 넘겨준 URL 인가 규칙 설정 객체
                 .authorizeHttpRequests(auth -> auth
                                 // 아래는 로그인 없이 허용
                                 .requestMatchers(
@@ -150,13 +124,6 @@ public class SecurityConfig {
                                 // anyRequest().authenticated()에 의해 인증된 사용자만 CSRF 토큰을 받을 수 있다.
                                 .anyRequest().authenticated()
                 )
-
-
-                // 3. 어떤 URL은 특정 Role이 있어야 접근 가능한지 정한다.
-                // MSA에서 Role 검사는 각 서비스 내에서 진행한다. -> Gateway에서는 Role 기반 인가를 하지 않는다.
-
-
-                // 4. 로그인 방식은 무엇인지 정한다.
                 // Keycloak을 이용하는데,
                 // Spring 서버가 OAuth2/OIDC Client가 돼서,
                 // 사용자를 Keycloak 로그인 페이지로 리다이렉트하고,
@@ -164,7 +131,7 @@ public class SecurityConfig {
                 .oauth2Login(oauth2 -> oauth2
                         .successHandler(oidcLoginSuccessHandler)
                 )
-                // 5. 로그아웃은 어떻게 할지 정한다.
+                // 로그아웃은 어떻게 할지 정한다.
                 // 웹 브라우저 로그아웃은 Gateway의 /logout으로 처리한다.
                 // Gateway 세션을 무효화하고, JSESSIONID 쿠키를 삭제한다.
 
@@ -193,15 +160,7 @@ public class SecurityConfig {
                 // 웹 브라우저는 Gateway와 origin이 다르면 CORS 설정이 필요하다.
                 .cors(cors -> cors.configurationSource(corsConfigurationSource))
                 // 2) CSRF
-                // Gateway는 웹 브라우저와 JSESSIONID 세션 쿠키를 사용하므로
-                // 운영 기준으로는 CSRF 보호가 필요하다.
-                //
-                // 다만 현재는 각 MSA API를 Swagger Try it out으로 검증하는 개발 단계다.
-                // Try it out까지 허용하려고 /item/**, /sales/** 같은 주요 MSA 라우트를
-                // CSRF 예외로 넓게 빼면 보호 범위가 불명확해진다.
-                //
-                // 그래서 개발 기간에는 전체 비활성화 상태를 명시적으로 유지한다.
-                // 운영 전에는 CookieCsrfTokenRepository 기반 CSRF 보호를 다시 활성화해야 한다.
+                // Gateway는 웹 브라우저와 JSESSIONID 세션 쿠키를 사용하므로 CSRF 보호가 필요하다.
                 .csrf(AbstractHttpConfigurer::disable)
 
                 // 7. 세션을 쓸지, JWT만 쓸지 정한다.
@@ -219,10 +178,6 @@ public class SecurityConfig {
                         .expiredUrl("http://localhost:5173/login?expired=true")
                         .sessionRegistry(sessionRegistry)
                 )
-
-                // 8. 인증 실패 / 권한 실패 시 어떻게 응답할지 정한다.
-                // 웹 브라우저 요청은 OAuth2 로그인/리다이렉트 흐름을 유지한다.
-                // Bearer 토큰 요청의 401/403 JSON 응답은 bearerTokenSecurityFilterChain에서 처리한다.
                 .build();
     }
 
@@ -231,9 +186,8 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
 
-        // CORS 정책 객체를 생성한다.
+        // CORS 정책 객체를 생성
         CorsConfiguration config = new CorsConfiguration();
-
 
         // 요청을 허용할 프론트엔드 Origin 지정
         // Cross-Origin 요청에서는 쿠키를 기본적으로 안 보내지만
@@ -287,6 +241,7 @@ public class SecurityConfig {
        현재 로그인된 사용자들의 세션 정보를 추적하기 위한 저장소 Bean
        maximumSessions(1) 설정과 함께 사용되며,
        어떤 principal이 어떤 세션을 가지고 있는지를 관리한다.
+
        또한 커스텀 로그인 성공 핸들러에서
        sessionRegistry.getAllPrincipals,
        sessionRegistry.getAllSessions를 통해

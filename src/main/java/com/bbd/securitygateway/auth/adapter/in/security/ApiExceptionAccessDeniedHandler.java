@@ -19,6 +19,11 @@ import org.springframework.web.servlet.HandlerExceptionResolver;
 @Component
 public class ApiExceptionAccessDeniedHandler implements AccessDeniedHandler {
 
+    /*
+     Spring Security 필터 단계에서 발생한 인가 실패는 컨트롤러까지 도달하지 않는다.
+     따라서 직접 응답을 만들지 않고, HandlerExceptionResolver를 통해
+     ApiException을 GlobalExceptionHandler로 넘겨 공통 에러 응답 형식을 유지한다.
+     */
     private final HandlerExceptionResolver exceptionResolver;
 
     public ApiExceptionAccessDeniedHandler(
@@ -27,10 +32,15 @@ public class ApiExceptionAccessDeniedHandler implements AccessDeniedHandler {
         this.exceptionResolver = exceptionResolver;
     }
 
+    /*
+     인증은 되었지만 접근 권한이 부족할 때 호출된다.
+     예: 필요한 role/authority가 없거나, Security 인가 규칙에서 접근이 거부된 경우.
+     */
     @Override
     public void handle(HttpServletRequest request,
                        HttpServletResponse response,
                        AccessDeniedException accessDeniedException) {
+        // Security 인가 실패를 프로젝트 공통 403 예외로 변환해 공통 예외 처리기에 위임한다.
         exceptionResolver.resolveException(
                 request,
                 response,

@@ -59,6 +59,7 @@ public class OidcLoginSuccessHandler implements AuthenticationSuccessHandler {
         String currentSessionId = session.getId();
         String currentUserKey = extractUserKey(authentication.getPrincipal());
 
+        // 중복 세션 로그인 흐름
         expireOtherSessionsOfSameUser(currentSessionId, currentUserKey);
 
         // 로그인 성공 후 main 페이지로 리다이렉트한다.
@@ -74,6 +75,7 @@ public class OidcLoginSuccessHandler implements AuthenticationSuccessHandler {
             String userKey = extractUserKey(principal);
 
             if (currentUserKey.equals(userKey)) {
+                // 동일한 세션이 존재한다면 기존 세션을 만료 처리한다.
                 expireSessionsExceptCurrent(principal, currentSessionId);
             }
         });
