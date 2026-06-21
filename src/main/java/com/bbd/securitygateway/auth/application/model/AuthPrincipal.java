@@ -1,24 +1,24 @@
 package com.bbd.securitygateway.auth.application.model;
 
 /*
- Spring Security Authentication에서 추출한 현재 인증 사용자 정보.
+ Spring Security Authentication에서 추출한 현재 요청의 인증 사용자 정보.
 
- 이 객체는 application 계층이 Spring Security의 Authentication, OidcUser 같은
+ 이 객체는 application 계층이 Spring Security의 Authentication, OidcUser, Jwt 같은
  프레임워크 타입에 직접 의존하지 않도록 중간에서 사용하는 모델이다.
 
  즉, adapter.in.web 또는 adapter.in.security 계층에서
- Authentication/OidcUser를 읽어 AuthPrincipal로 변환한 뒤
+ Authentication/OidcUser/Jwt를 읽어 AuthPrincipal로 변환한 뒤
  application use case에 전달한다.
 
- 이 객체는 Gateway 세션 인증 결과만 표현한다.
+ 이 객체는 Gateway가 확인한 현재 요청의 인증 결과만 표현한다.
  User Service 기준 userId, role, tenancyType, status, permission 같은
  ERP 인가 정보는 포함하지 않는다.
 
  해당 ERP 인가 정보는 각 MSA가 Access Token을 직접 검증한 뒤,
  JWT sub를 기준으로 Redis UserSnapshot을 조회해서 판단한다.
 
- Gateway는 /api/auth/me에서 현재 브라우저 사용자의 세션 로그인 상태와
- Keycloak/OIDC 기본 사용자 정보만 제공한다.
+ Gateway는 /api/auth/me에서 현재 브라우저 세션 사용자 또는
+ 모바일 Bearer JWT 사용자의 Keycloak/OIDC 기본 사용자 정보만 제공한다.
  */
 public record AuthPrincipal(
         boolean authenticated,

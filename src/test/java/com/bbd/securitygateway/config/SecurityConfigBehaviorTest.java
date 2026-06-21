@@ -61,6 +61,21 @@ class SecurityConfigBehaviorTest {
     }
 
     @Test
+    void 유효한_bearer_토큰이면_api_auth_me를_모바일_인증_상태로_응답한다() throws Exception {
+        mockMvc.perform(get("/api/auth/me")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer valid-mobile-token"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.authenticated").value(true))
+                .andExpect(jsonPath("$.keycloakSub").value("mobile-keycloak-sub-1"))
+                .andExpect(jsonPath("$.username").value("MOBILE001"))
+                .andExpect(jsonPath("$.employeeNumber").value("MOBILE001"))
+                .andExpect(jsonPath("$.displayName").value("모바일사용자"))
+                .andExpect(jsonPath("$.email").value("mobile@example.com"))
+                .andExpect(jsonPath("$.position").value("driver"))
+                .andExpect(jsonPath("$.message").value("로그인된 사용자입니다."));
+    }
+
+    @Test
     void bearer_토큰이_없으면_웹_필터체인에서_api_auth_me를_세션_미인증_상태로_응답한다() throws Exception {
         mockMvc.perform(get("/api/auth/me"))
                 .andExpect(status().isOk())
@@ -102,7 +117,12 @@ class SecurityConfigBehaviorTest {
 
                 return Jwt.withTokenValue(token)
                         .header("alg", "none")
-                        .subject("test-user")
+                        .subject("mobile-keycloak-sub-1")
+                        .claim("preferred_username", "MOBILE001")
+                        .claim("employee_number", "MOBILE001")
+                        .claim("name", "모바일사용자")
+                        .claim("email", "mobile@example.com")
+                        .claim("position", "driver")
                         .issuedAt(Instant.now())
                         .expiresAt(Instant.now().plusSeconds(60))
                         .build();

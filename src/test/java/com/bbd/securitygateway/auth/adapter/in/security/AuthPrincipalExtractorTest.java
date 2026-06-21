@@ -10,6 +10,8 @@ import org.springframework.security.oauth2.client.authentication.OAuth2Authentic
 import org.springframework.security.oauth2.core.oidc.OidcIdToken;
 import org.springframework.security.oauth2.core.oidc.user.DefaultOidcUser;
 import org.springframework.security.oauth2.core.oidc.user.OidcUser;
+import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
 
 import java.time.Instant;
 import java.util.List;
@@ -76,6 +78,35 @@ class AuthPrincipalExtractorTest {
     }
 
     @Test
+    void jwt_principal이면_모바일_bearer_사용자_claim을_auth_principal로_변환한다() {
+        AuthPrincipal principal = extractor.extract(jwtAuthentication(jwt(Map.of(
+                "sub", "mobile-keycloak-sub-1",
+                "preferred_username", "MOBILE001",
+                "employee_number", "MOBILE001",
+                "name", "모바일사용자",
+                "email", "mobile@example.com",
+                "position", "driver"
+        ))));
+
+        assertTrue(principal.authenticated());
+        assertEquals("mobile-keycloak-sub-1", principal.keycloakSub());
+        assertEquals("MOBILE001", principal.username());
+        assertEquals("MOBILE001", principal.employeeNumber());
+        assertEquals("모바일사용자", principal.displayName());
+        assertEquals("mobile@example.com", principal.email());
+        assertEquals("driver", principal.position());
+    }
+
+    @Test
+    void jwt_principal의_subject가_없으면_인증되지_않은_사용자로_처리한다() {
+        AuthPrincipal principal = extractor.extract(jwtAuthentication(jwt(Map.of(
+                "preferred_username", "MOBILE001"
+        ))));
+
+        assertUnauthenticated(principal);
+    }
+
+    @Test
     void 예상하지_않은_principal_타입이면_인증되지_않은_사용자로_처리한다() {
         Authentication authentication = new UsernamePasswordAuthenticationToken(
                 "plain-user",
@@ -101,6 +132,19 @@ class AuthPrincipalExtractorTest {
         );
 
         return new DefaultOidcUser(List.of(), idToken);
+    }
+
+    private Authentication jwtAuthentication(Jwt jwt) {
+        return new JwtAuthenticationToken(jwt, AuthorityUtils.createAuthorityList("SCOPE_openid"));
+    }
+
+    private Jwt jwt(Map<String, Object> claims) {
+        return Jwt.withTokenValue("access-token")
+                .header("alg", "none")
+                .claims(jwtClaims -> jwtClaims.putAll(claims))
+                .issuedAt(Instant.now())
+                .expiresAt(Instant.now().plusSeconds(60))
+                .build();
     }
 
     private void assertUnauthenticated(AuthPrincipal principal) {

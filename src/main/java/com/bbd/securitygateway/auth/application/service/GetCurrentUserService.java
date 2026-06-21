@@ -6,12 +6,12 @@ import com.bbd.securitygateway.auth.application.port.in.GetCurrentUserUseCase;
 import org.springframework.stereotype.Service;
 
 /*
- 현재 요청 사용자의 Gateway 세션 인증 상태를 조회하는 유스케이스 구현체.
+ 현재 요청 사용자의 Gateway 인증 상태를 조회하는 유스케이스 구현체.
 
  이 서비스는 /api/auth/me 요청에서 사용된다.
 
- 이 클래스는 Spring Security의 Authentication, OidcUser 같은 프레임워크 타입을 직접 다루지 않는다.
- 대신 adapter 계층에서 Authentication/OidcUser를 AuthPrincipal로 변환한 뒤 전달받는다.
+ 이 클래스는 Spring Security의 Authentication, OidcUser, Jwt 같은 프레임워크 타입을 직접 다루지 않는다.
+ 대신 adapter 계층에서 Authentication/OidcUser/Jwt를 AuthPrincipal로 변환한 뒤 전달받는다.
 
  즉, application 계층은 Spring Security를 직접 알지 않고,
  현재 인증 사용자 정보를 표현하는 AuthPrincipal만 사용한다.
@@ -27,7 +27,7 @@ import org.springframework.stereotype.Service;
 public class GetCurrentUserService implements GetCurrentUserUseCase {
 
     /*
-     현재 요청 사용자의 Gateway 세션 인증 상태를 조회한다.
+     현재 요청 사용자의 Gateway 인증 상태를 조회한다.
 
      principal은 adapter 계층에서 Spring Security Authentication/OidcUser를 읽어
      application 계층이 사용할 수 있게 변환한 인증 사용자 정보이다.

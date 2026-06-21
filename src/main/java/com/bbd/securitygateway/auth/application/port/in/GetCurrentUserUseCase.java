@@ -4,12 +4,12 @@ import com.bbd.securitygateway.auth.application.model.AuthPrincipal;
 import com.bbd.securitygateway.auth.application.model.CurrentUserResult;
 
 /*
- 현재 요청 사용자의 Gateway 세션 인증 상태를 조회하는 유스케이스.
+ 현재 요청 사용자의 Gateway 인증 상태를 조회하는 유스케이스.
 
  이 유스케이스는 adapter.in.web 계층의 /api/auth/me에서 호출할 수 있다.
 
  역할:
- - Gateway 세션 기준 로그인 여부 확인
+ - Gateway가 확인한 현재 요청의 로그인 여부 확인
  - Keycloak/OIDC 인증 사용자 기본 정보 확인
  - 현재 사용자 상태를 CurrentUserResult로 반환
 
