@@ -46,34 +46,32 @@ public class AuthController {
     private final GetCurrentUserUseCase getCurrentUserUseCase;
 
     /*
-     현재 브라우저 사용자의 로그인 상태를 조회한다.
-
-     프론트는 이 API를 호출해서
      1) 현재 Gateway 세션 기준 로그인되어 있는지
      2) 로그인되어 있다면 Keycloak/OIDC 기본 사용자 정보가 무엇인지
      확인할 수 있다.
 
-     이 API는 ERP 사용자 등록 여부나 권한을 판단하지 않는다.
-
-     처리 흐름:
-     1. Spring Security가 Authentication을 메서드 파라미터로 넘겨준다.
-     2. AuthPrincipalExtractor가 Authentication을 AuthPrincipal로 변환한다.
-     3. GetCurrentUserUseCase가 Gateway 기준 현재 사용자 상태를 판단한다.
-     4. CurrentUserResult를 그대로 JSON 응답으로 반환한다.
-
-     이 슬라이스는 현재 화면 표시용 로그인 상태 조회만 담당한다.
-     CurrentUserResult와 별도 Response DTO가 완전히 같은 필드를 가지면
-     단순 복사 매핑만 늘어나므로 여기서는 결과 모델을 직접 응답으로 사용한다.
-     나중에 외부 응답 스키마가 application 결과 모델과 달라지면
-     그때 adapter.in.web 전용 Response DTO를 다시 분리한다.
+     담기는 값:
+     - authenticated: Gateway 세션 / Spring Security 기준 인증 여부
+     - keycloakSub: Keycloak 사용자의 고유 식별자(OIDC sub claim)
+     - username: Keycloak/OIDC 로그인 식별자(preferred_username 등)
+     - employeeNumber: Keycloak claim에서 얻은 사번
+     - displayName: Keycloak claim에서 얻은 사용자 표시 이름
+     - email: Keycloak claim에서 얻은 이메일
+     - position: Keycloak claim에서 얻은 직책
+     - message: 현재 로그인 상태를 설명하는 메시지
      */
     @GetMapping("/api/auth/me")
+    // CurrentUserResult = 삭제된 CurrentUserResponse
+    // Authentication은 Spring에서 주는 객체
     public CurrentUserResult me(Authentication authentication) {
+        // principal은 로그인 여부 / 로그인 성공 시 정보가 들어있다.
         AuthPrincipal principal = authPrincipalExtractor.extract(authentication);
 
+        // principal을 가지고 getCurrentUser로 처리 - principal에 로그인 성공 여부에 대한 message까지 첨부해서 리턴한다.
         return getCurrentUserUseCase.getCurrentUser(principal);
     }
 
+    
     @GetMapping("/api/auth/token")
     public ResponseEntity<String> token(
             @RegisteredOAuth2AuthorizedClient("keycloak")

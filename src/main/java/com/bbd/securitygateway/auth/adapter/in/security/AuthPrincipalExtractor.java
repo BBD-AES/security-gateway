@@ -21,19 +21,13 @@ import org.springframework.stereotype.Component;
  사용 위치:
  - AuthController
    (/api/auth/me에서 현재 Gateway 세션 로그인 사용자 정보를
-    application use case에 넘길 때 사용)
+    application usecase에 넘길 때 사용)
 
  현재 Gateway 구조:
  - 브라우저는 Gateway에 JSESSIONID 세션 쿠키로 요청한다.
  - Gateway는 oauth2Login 기반 OIDC 로그인을 처리한다.
  - /api/auth/me는 Gateway 세션 기준 현재 로그인 상태와
    Keycloak/OIDC 기본 사용자 정보를 프론트엔드에 반환한다.
-
- 주의:
- - 이 클래스는 UserSnapshot을 조회하지 않는다.
- - Redis를 조회하지 않는다.
- - role, tenancy, status, permission을 판단하지 않는다.
- - 하위 MSA로 사용자 식별자를 전달하지 않는다.
 
  최종 인가 구조:
  - Gateway는 Access Token Relay를 통해 하위 MSA에
@@ -61,9 +55,12 @@ public class AuthPrincipalExtractor {
      이 경우 예외가 아니라 authenticated=false 응답으로 처리하는 것이 자연스럽다.
      */
     public AuthPrincipal extract(Authentication authentication) {
+        // 인증 객체가 비었거나, 인증된 사용자가 아니거나, 로그인은 하지 않았지만 인증 객체를 익명 객체로 주거나
         if (authentication == null
                 || !authentication.isAuthenticated()
+                // authentication 객체가 AnonymousAuthenticationToken 타입인지 검사
                 || authentication instanceof AnonymousAuthenticationToken) {
+            // 인증되지 않았다는 정적 팩토리 메서드를 통해 인증되지 않은 사용자로 리턴
             return AuthPrincipal.unauthenticated();
         }
 
@@ -87,10 +84,12 @@ public class AuthPrincipalExtractor {
             String subject = subjectExtractor.extract(oidcUser)
                     .orElse(null);
 
+            //sub가 null이면 인증되지 않은 객체
             if (subject == null) {
                 return AuthPrincipal.unauthenticated();
             }
 
+            //sub가 null이 아니라면 값을 꺼내서 인증된 객체로 리턴
             return AuthPrincipal.authenticated(
                     subject,
                     oidcUser.getPreferredUsername(),
