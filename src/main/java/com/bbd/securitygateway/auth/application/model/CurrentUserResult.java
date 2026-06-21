@@ -1,7 +1,7 @@
 package com.bbd.securitygateway.auth.application.model;
 
 /*
- Gateway 기준 현재 요청 사용자의 세션 인증 상태를
+ Gateway 기준 현재 요청 사용자의 인증 상태를
  application 계층에서 표현하기 위한 결과 모델.
 
  이 객체는 웹 응답 DTO가 아니다.
@@ -9,7 +9,7 @@ package com.bbd.securitygateway.auth.application.model;
 
  역할:
  - GetCurrentUserUseCase의 반환 모델
- - Gateway 세션 기준 로그인 여부 표현
+ - Gateway가 확인한 현재 요청의 로그인 여부 표현
  - Keycloak/OIDC에서 얻은 기본 사용자 정보 표현
 
  현재 /api/auth/me의 외부 응답 필드도 이 모델과 완전히 같다.
@@ -90,6 +90,7 @@ public record CurrentUserResult(
      인증된 사용자 상태를 표현하는 정적 팩토리 메서드.
 
      Gateway는 AuthPrincipal에 들어 있는 Keycloak/OIDC 기본 정보만 사용한다.
+     이 정보는 웹 OIDC 세션 사용자와 모바일 Bearer JWT 사용자 모두에 대해 동일하게 표현된다.
      User Service 기준 role, tenancy, status, permission은 여기서 판단하지 않는다.
 
      실제 ERP 인가는 각 MSA가 Access Token을 검증한 뒤,

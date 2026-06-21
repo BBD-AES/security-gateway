@@ -15,7 +15,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 /*
- 현재 브라우저 사용자의 Gateway 세션 로그인 상태와
+ 현재 요청 사용자의 Gateway 인증 상태와
  Keycloak/OIDC 기본 사용자 정보를 반환하는 Web Adapter.
  */
 @RestController
@@ -26,12 +26,15 @@ public class AuthController {
     private final GetCurrentUserUseCase getCurrentUserUseCase;
 
     /*
-     현재 브라우저 사용자의 로그인 상태를 조회한다.
+     현재 요청 사용자의 로그인 상태를 조회한다.
 
-     프론트는 이 API를 호출해서
-     1) 현재 Gateway 세션 기준 로그인되어 있는지
+     웹 프론트와 모바일 클라이언트는 이 API를 호출해서
+     1) 현재 Gateway 기준 인증되어 있는지
      2) 로그인되어 있다면 Keycloak/OIDC 기본 사용자 정보가 무엇인지
      확인할 수 있다.
+
+     웹 브라우저 요청은 OIDC 세션의 OidcUser를 기준으로 처리하고,
+     모바일 Bearer 요청은 Resource Server가 검증한 Jwt를 기준으로 처리한다.
 
      처리 흐름:
      1. Spring Security가 Authentication을 메서드 파라미터로 넘겨준다.

@@ -5,6 +5,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.security.authentication.AnonymousAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.oauth2.core.oidc.user.OidcUser;
+import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.stereotype.Component;
 
 /*
@@ -18,15 +19,20 @@ import org.springframework.stereotype.Component;
  - 웹 세션 기반 OIDC 로그인 사용자를 AuthPrincipal.authenticated(...)로 변환한다.
    (oauth2Login 성공 후 principal이 OidcUser이기 때문에 가능하다.)
 
+ - 모바일/외부 클라이언트의 Bearer JWT 사용자를 AuthPrincipal.authenticated(...)로 변환한다.
+   (oauth2ResourceServer().jwt() 검증 성공 후 principal이 Jwt이기 때문에 가능하다.)
+
  사용 위치:
  - AuthController
-   (/api/auth/me에서 현재 Gateway 세션 로그인 사용자 정보를
+   (/api/auth/me에서 현재 요청의 인증 사용자 정보를
     application use case에 넘길 때 사용)
 
  현재 Gateway 구조:
  - 브라우저는 Gateway에 JSESSIONID 세션 쿠키로 요청한다.
  - Gateway는 oauth2Login 기반 OIDC 로그인을 처리한다.
- - /api/auth/me는 Gateway 세션 기준 현재 로그인 상태와
+ - 모바일/외부 클라이언트는 Authorization: Bearer <JWT>로 요청한다.
+ - Gateway는 Resource Server 방식으로 JWT를 검증한다.
+ - /api/auth/me는 Gateway가 확인한 현재 요청의 인증 상태와
    Keycloak/OIDC 기본 사용자 정보를 프론트엔드에 반환한다.
 
  주의:
@@ -53,6 +59,7 @@ public class AuthPrincipalExtractor {
 
      인증되지 않은 요청이면 AuthPrincipal.unauthenticated()를 반환한다.
      OIDC 로그인 사용자이면 OidcUser claim을 읽어 AuthPrincipal.authenticated(...)를 반환한다.
+     Bearer JWT 사용자이면 Jwt claim을 읽어 AuthPrincipal.authenticated(...)를 반환한다.
 
      이 메서드는 예외를 던지지 않고 unauthenticated로 안전하게 떨어지도록 설계한다.
      이유는 /api/auth/me가 로그인 여부를 프론트엔드에 알려주는 API이기 때문이다.
@@ -102,7 +109,35 @@ public class AuthPrincipalExtractor {
         }
 
         /*
-         현재 /api/auth/me는 웹 세션 기반 OIDC 로그인 사용자를 대상으로 한다.
+         모바일/외부 클라이언트가 Authorization: Bearer <JWT>로 요청하면
+         Spring Security Resource Server 검증 이후 principal은 Jwt이다.
+
+         이 경우도 Gateway 기준으로는 인증된 현재 요청 사용자이므로
+         OidcUser와 같은 AuthPrincipal 형태로 변환한다.
+
+         단, 여기서도 User Service 등록 여부나 ERP 권한은 판단하지 않는다.
+         각 MSA가 Access Token을 직접 검증한 뒤 JWT sub 기준으로 판단한다.
+         */
+        if (principal instanceof Jwt jwt) {
+            String subject = jwt.getSubject();
+
+            if (subject == null) {
+                return AuthPrincipal.unauthenticated();
+            }
+
+            return AuthPrincipal.authenticated(
+                    subject,
+                    jwt.getClaimAsString("preferred_username"),
+                    jwt.getClaimAsString("employee_number"),
+                    jwt.getClaimAsString("name"),
+                    jwt.getClaimAsString("email"),
+                    jwt.getClaimAsString("position")
+            );
+        }
+
+        /*
+         현재 /api/auth/me는 웹 세션 기반 OIDC 로그인 사용자와
+         Bearer JWT 인증 사용자를 대상으로 한다.
 
          예상하지 않은 principal 타입이면
          Gateway 기준 현재 사용자 정보를 확정할 수 없으므로

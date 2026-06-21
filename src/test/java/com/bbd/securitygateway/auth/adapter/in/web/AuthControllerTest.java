@@ -6,10 +6,13 @@ import com.bbd.securitygateway.auth.application.model.CurrentUserResult;
 import com.bbd.securitygateway.auth.application.service.GetCurrentUserService;
 import org.junit.jupiter.api.Test;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.core.authority.AuthorityUtils;
 import org.springframework.security.oauth2.client.authentication.OAuth2AuthenticationToken;
 import org.springframework.security.oauth2.core.oidc.OidcIdToken;
 import org.springframework.security.oauth2.core.oidc.user.DefaultOidcUser;
 import org.springframework.security.oauth2.core.oidc.user.OidcUser;
+import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
 
 import java.time.Instant;
 import java.util.List;
@@ -38,6 +41,20 @@ class AuthControllerTest {
         assertEquals("홍길동", result.displayName());
         assertEquals("hong@example.com", result.email());
         assertEquals("manager", result.position());
+        assertEquals("로그인된 사용자입니다.", result.message());
+    }
+
+    @Test
+    void me는_모바일_bearer_jwt_사용자_정보도_CurrentUserResult로_반환한다() {
+        CurrentUserResult result = authController.me(jwtAuthentication());
+
+        assertTrue(result.authenticated());
+        assertEquals("mobile-keycloak-sub-1", result.keycloakSub());
+        assertEquals("MOBILE001", result.username());
+        assertEquals("MOBILE001", result.employeeNumber());
+        assertEquals("모바일사용자", result.displayName());
+        assertEquals("mobile@example.com", result.email());
+        assertEquals("driver", result.position());
         assertEquals("로그인된 사용자입니다.", result.message());
     }
 
@@ -75,5 +92,21 @@ class AuthControllerTest {
         );
 
         return new DefaultOidcUser(List.of(), idToken);
+    }
+
+    private Authentication jwtAuthentication() {
+        Jwt jwt = Jwt.withTokenValue("access-token")
+                .header("alg", "none")
+                .subject("mobile-keycloak-sub-1")
+                .claim("preferred_username", "MOBILE001")
+                .claim("employee_number", "MOBILE001")
+                .claim("name", "모바일사용자")
+                .claim("email", "mobile@example.com")
+                .claim("position", "driver")
+                .issuedAt(Instant.now())
+                .expiresAt(Instant.now().plusSeconds(60))
+                .build();
+
+        return new JwtAuthenticationToken(jwt, AuthorityUtils.createAuthorityList("SCOPE_openid"));
     }
 }
