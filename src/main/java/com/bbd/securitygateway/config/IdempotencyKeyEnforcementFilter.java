@@ -39,6 +39,8 @@ public class IdempotencyKeyEnforcementFilter extends OncePerRequestFilter {
     // 변경 API 가 사는 백엔드 서비스 prefix. POST 가 이 경로로 갈 때만 헤더를 강제.
     private static final List<String> MUTATING_PREFIXES =
             List.of("/item", "/inventory", "/sales", "/procurement", "/user");
+    // 비-멱등(조회성) POST 는 강제 제외 — 예: /api/v1/items/search/bulk(검색). 부수효과 없는 쿼리는 멱등키 불필요.
+    private static final List<String> QUERY_POST_PATTERNS = List.of("/search");
 
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain chain)
@@ -58,6 +60,12 @@ public class IdempotencyKeyEnforcementFilter extends OncePerRequestFilter {
             return false;
         }
         String path = request.getRequestURI();
-        return MUTATING_PREFIXES.stream().anyMatch(p -> path.equals(p) || path.startsWith(p + "/"));
+        boolean mutating = MUTATING_PREFIXES.stream().anyMatch(p -> path.equals(p) || path.startsWith(p + "/"));
+        if (!mutating) {
+            return false;
+        }
+        // 조회성 POST(검색 등)는 멱등키 강제 대상에서 제외 — 단 세그먼트 정밀 매칭.
+        // substring 오탐 방지: "/search" 는 경로 세그먼트일 때만 매칭(예: /items/search/bulk ✓ / /sales/saved-searches ✗ → 강제 유지).
+        return QUERY_POST_PATTERNS.stream().noneMatch(seg -> path.endsWith(seg) || path.contains(seg + "/"));
     }
 }
