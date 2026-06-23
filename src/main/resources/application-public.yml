@@ -10,6 +10,14 @@ server:
         same-site: lax
         path: /
 
+# 프론트엔드 origin/URL — CORS 허용 origin + OIDC 로그인/로그아웃/만료 리다이렉트에 사용.
+# 동일출처(nginx 프록시) 배포면 공개 도메인으로, 다른 origin이면 그 origin으로 env 주입.
+app:
+  frontend:
+    base-url: ${FRONTEND_BASE_URL:http://localhost:5173}
+  cors:
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:5173}
+
 spring:
   config:
     import: optional:file:.env[.properties]

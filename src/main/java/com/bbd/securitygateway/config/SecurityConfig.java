@@ -3,6 +3,7 @@ package com.bbd.securitygateway.config;
 import com.bbd.securitygateway.auth.adapter.in.security.ApiExceptionAccessDeniedHandler;
 import com.bbd.securitygateway.auth.adapter.in.security.ApiExceptionAuthenticationEntryPoint;
 import com.bbd.securitygateway.auth.adapter.in.security.OidcLoginSuccessHandler;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.annotation.Order;
@@ -98,7 +99,8 @@ public class SecurityConfig {
                                                       LogoutSuccessHandler oidcLogoutSuccessHandler,
                                                       OidcLoginSuccessHandler oidcLoginSuccessHandler,
                                                       CorsConfigurationSource corsConfigurationSource,
-                                                      SessionRegistry sessionRegistry
+                                                      SessionRegistry sessionRegistry,
+                                                      @Value("${app.frontend.base-url}") String frontendBaseUrl
     ) throws Exception {
 
         return http
@@ -175,7 +177,7 @@ public class SecurityConfig {
                         .sessionFixation(SessionManagementConfigurer.SessionFixationConfigurer::changeSessionId)
                         .maximumSessions(1)
                         .maxSessionsPreventsLogin(false)
-                        .expiredUrl("http://localhost:5173/login?expired=true")
+                        .expiredUrl(frontendBaseUrl + "/login?expired=true")
                         .sessionRegistry(sessionRegistry)
                 )
                 .build();
@@ -184,18 +186,17 @@ public class SecurityConfig {
 
     // cors 설정
     @Bean
-    public CorsConfigurationSource corsConfigurationSource() {
+    public CorsConfigurationSource corsConfigurationSource(
+            // 허용 origin 은 환경별 설정(app.cors.allowed-origins, 콤마 구분)에서 주입.
+            // allowCredentials(true) 라 "*" 불가 → 정확한 origin 목록 필요.
+            @Value("${app.cors.allowed-origins}") List<String> allowedOrigins
+    ) {
 
         // CORS 정책 객체를 생성
         CorsConfiguration config = new CorsConfiguration();
 
-        // 요청을 허용할 프론트엔드 Origin 지정
-        // Cross-Origin 요청에서는 쿠키를 기본적으로 안 보내지만
-        // JSESSIONID 쿠키를 포함한 요청을 허용해야 하므로 allowCredentials(true)를 사용한다.
-        // 이 경우 "*" 전체 허용은 사용할 수 없고, 정확한 Origin을 지정해야 한다.
-        config.setAllowedOrigins(List.of(
-                "http://localhost:5173"
-        ));
+        // 요청을 허용할 프론트엔드 Origin 지정(환경별 주입)
+        config.setAllowedOrigins(allowedOrigins);
 
 
         // 허용할 HTTP 메서드 지정

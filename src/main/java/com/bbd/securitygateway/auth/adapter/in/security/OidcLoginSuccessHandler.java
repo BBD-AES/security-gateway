@@ -6,6 +6,7 @@ import jakarta.servlet.http.HttpServletResponse;
 import jakarta.servlet.http.HttpSession;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.session.SessionRegistry;
 import org.springframework.security.web.DefaultRedirectStrategy;
@@ -36,6 +37,10 @@ public class OidcLoginSuccessHandler implements AuthenticationSuccessHandler {
     private final OidcUserSubjectExtractor subjectExtractor;
     private final RedirectStrategy redirectStrategy = new DefaultRedirectStrategy();
 
+    // 로그인 성공/오류 리다이렉트 목적지(환경별 설정). @RequiredArgsConstructor 는 final 만 받으므로 필드 주입.
+    @Value("${app.frontend.base-url}")
+    private String frontendBaseUrl;
+
     @Override
     public void onAuthenticationSuccess(HttpServletRequest request,
                                         HttpServletResponse response,
@@ -52,7 +57,7 @@ public class OidcLoginSuccessHandler implements AuthenticationSuccessHandler {
                     request.getMethod(),
                     request.getRequestURI()
             );
-            response.sendRedirect("http://localhost:5173/login?error=session");
+            response.sendRedirect(frontendBaseUrl + "/login?error=session");
             return;
         }
 
@@ -65,7 +70,7 @@ public class OidcLoginSuccessHandler implements AuthenticationSuccessHandler {
         // 로그인 성공 후 main 페이지로 리다이렉트한다.
         // defaultSuccessUrl 대신 직접 RedirectStrategy를 사용하는 이유는
         // 위의 기존 세션 만료 로직을 실행한 뒤 원하는 위치로 보내기 위해서다.
-        redirectStrategy.sendRedirect(request, response, "http://localhost:5173/main");
+        redirectStrategy.sendRedirect(request, response, frontendBaseUrl + "/main");
     }
 
     private void expireOtherSessionsOfSameUser(String currentSessionId, String currentUserKey) {

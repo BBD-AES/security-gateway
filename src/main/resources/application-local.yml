@@ -10,6 +10,13 @@ server:
         same-site: lax
         path: /
 
+# 프론트엔드 origin/URL (로컬 dev)
+app:
+  frontend:
+    base-url: http://localhost:5173
+  cors:
+    allowed-origins: http://localhost:5173
+
 spring:
   config:
     import: optional:file:.env[.properties]
