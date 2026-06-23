@@ -28,6 +28,12 @@ import java.util.List;
 @Configuration
 public class SecurityConfig {
 
+    private final FrontendProperties frontendProperties;
+
+    public SecurityConfig(FrontendProperties frontendProperties) {
+        this.frontendProperties = frontendProperties;
+    }
+
     /*
     1. Authorization: Bearer 토큰이 있는 요청
     모바일/앱 또는 토큰 기반 API 요청으로 보고 JWT Resource Server 방식으로 처리한다.
@@ -175,7 +181,7 @@ public class SecurityConfig {
                         .sessionFixation(SessionManagementConfigurer.SessionFixationConfigurer::changeSessionId)
                         .maximumSessions(1)
                         .maxSessionsPreventsLogin(false)
-                        .expiredUrl("http://localhost:5173/login?expired=true")
+                        .expiredUrl(frontendProperties.loginExpiredUrl())
                         .sessionRegistry(sessionRegistry)
                 )
                 .build();
@@ -193,9 +199,7 @@ public class SecurityConfig {
         // Cross-Origin 요청에서는 쿠키를 기본적으로 안 보내지만
         // JSESSIONID 쿠키를 포함한 요청을 허용해야 하므로 allowCredentials(true)를 사용한다.
         // 이 경우 "*" 전체 허용은 사용할 수 없고, 정확한 Origin을 지정해야 한다.
-        config.setAllowedOrigins(List.of(
-                "http://localhost:5173"
-        ));
+        config.setAllowedOrigins(frontendProperties.allowedOrigins());
 
 
         // 허용할 HTTP 메서드 지정

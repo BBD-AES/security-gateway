@@ -1,5 +1,6 @@
 package com.bbd.securitygateway.auth.adapter.in.security;
 
+import com.bbd.securitygateway.config.FrontendProperties;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -34,6 +35,7 @@ public class OidcLoginSuccessHandler implements AuthenticationSuccessHandler {
 
     private final SessionRegistry sessionRegistry;
     private final OidcUserSubjectExtractor subjectExtractor;
+    private final FrontendProperties frontendProperties;
     private final RedirectStrategy redirectStrategy = new DefaultRedirectStrategy();
 
     @Override
@@ -52,7 +54,7 @@ public class OidcLoginSuccessHandler implements AuthenticationSuccessHandler {
                     request.getMethod(),
                     request.getRequestURI()
             );
-            response.sendRedirect("http://localhost:5173/login?error=session");
+            response.sendRedirect(frontendProperties.loginSessionErrorUrl());
             return;
         }
 
@@ -65,7 +67,7 @@ public class OidcLoginSuccessHandler implements AuthenticationSuccessHandler {
         // 로그인 성공 후 main 페이지로 리다이렉트한다.
         // defaultSuccessUrl 대신 직접 RedirectStrategy를 사용하는 이유는
         // 위의 기존 세션 만료 로직을 실행한 뒤 원하는 위치로 보내기 위해서다.
-        redirectStrategy.sendRedirect(request, response, "http://localhost:5173/main");
+        redirectStrategy.sendRedirect(request, response, frontendProperties.mainUrl());
     }
 
     private void expireOtherSessionsOfSameUser(String currentSessionId, String currentUserKey) {
