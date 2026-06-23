@@ -3,6 +3,7 @@ package com.bbd.securitygateway.config;
 import com.bbd.securitygateway.auth.adapter.in.security.ApiExceptionAccessDeniedHandler;
 import com.bbd.securitygateway.auth.adapter.in.security.ApiExceptionAuthenticationEntryPoint;
 import com.bbd.securitygateway.auth.adapter.in.security.OidcLoginSuccessHandler;
+import com.bbd.securitygateway.auth.adapter.in.security.OidcUserSubjectExtractor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.annotation.Order;
@@ -12,10 +13,11 @@ import org.springframework.security.config.annotation.web.configurers.AbstractHt
 import org.springframework.security.config.annotation.web.configurers.SessionManagementConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.core.session.SessionRegistry;
-import org.springframework.security.core.session.SessionRegistryImpl;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.logout.LogoutSuccessHandler;
-import org.springframework.security.web.session.HttpSessionEventPublisher;
+import org.springframework.session.FindByIndexNameSessionRepository;
+import org.springframework.session.Session;
+import org.springframework.session.security.SpringSessionBackedSessionRegistry;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
@@ -39,10 +41,10 @@ public class SecurityConfig {
     모바일/앱 또는 토큰 기반 API 요청으로 보고 JWT Resource Server 방식으로 처리한다.
 
     2. Bearer 토큰이 없는 일반 브라우저 요청
-    웹 요청으로 보고 OAuth2/OIDC 로그인 + JSESSIONID 세션 방식으로 처리한다.
+    웹 요청으로 보고 OAuth2/OIDC 로그인 + Redis 기반 HttpSession 방식으로 처리한다.
 
     3. 로그아웃 처리
-    - 웹: Gateway 세션 종료 + Keycloak OIDC 로그아웃
+    - 웹: Redis에 저장된 Gateway 세션 종료 + Keycloak OIDC 로그아웃
     - 앱/토큰 요청: 서버 세션이 없으므로 기본적으로 클라이언트 토큰 삭제 또는 별도 revoke 정책 사용
 
     4. CSRF/CORS를 어떻게 처리할지 정한다.
@@ -166,12 +168,12 @@ public class SecurityConfig {
                 // 웹 브라우저는 Gateway와 origin이 다르면 CORS 설정이 필요하다.
                 .cors(cors -> cors.configurationSource(corsConfigurationSource))
                 // 2) CSRF
-                // Gateway는 웹 브라우저와 JSESSIONID 세션 쿠키를 사용하므로 CSRF 보호가 필요하다.
+                // Gateway는 웹 브라우저와 세션 쿠키를 사용하므로 CSRF 보호가 필요하다.
                 .csrf(AbstractHttpConfigurer::disable)
 
                 // 7. 세션을 쓸지, JWT만 쓸지 정한다.
                 // 현재 oauth2Login을 사용하면서
-                // 웹 브라우저는 Gateway 세션 + JSESSIONID 쿠키를 사용한다.
+                // 웹 브라우저는 Redis 기반 Gateway 세션 + 세션 쿠키를 사용한다.
                 // SessionCreationPolicy.IF_REQUIRED는 기본값에 가깝지만,
                 // oauth2Login 기반 웹 세션 사용 의도를 명확히 하기 위해 명시한다. (SessionCreationPolicy.IF_REQUIRED)
                 // 로그인 성공 시 세션 ID를 변경하여 세션 고정 공격을 방어한다.
@@ -242,31 +244,25 @@ public class SecurityConfig {
 
 
     /*
-       현재 로그인된 사용자들의 세션 정보를 추적하기 위한 저장소 Bean
+       현재 로그인된 사용자들의 세션 정보를 추적하기 위한 저장소 Bean.
        maximumSessions(1) 설정과 함께 사용되며,
-       어떤 principal이 어떤 세션을 가지고 있는지를 관리한다.
+       Keycloak sub 기준으로 어떤 principal이 어떤 세션을 가지고 있는지를 Redis 세션 인덱스로 관리한다.
 
        또한 커스텀 로그인 성공 핸들러에서
-       sessionRegistry.getAllPrincipals,
        sessionRegistry.getAllSessions를 통해
        기존 로그인 세션을 찾아 만료시키는 데 사용한다.
      */
     @Bean
-    public SessionRegistry sessionRegistry() {
-        return new SessionRegistryImpl();
-    }
-
-    /*
-       HttpSession의 생성/소멸/만료 이벤트를 Spring Security에 전달하는 Bean
-       SessionRegistry는 현재 살아있는 세션 정보를 관리해야 하는데,
-       로그아웃이나 세션 만료가 발생했을 때 그 정보를 정리하려면
-       서블릿 컨테이너의 세션 이벤트를 알아야 한다.
-       이 Bean을 등록하면 세션이 사라졌을 때
-       SessionRegistry 쪽에도 해당 세션 만료/삭제 이벤트가 전달된다.
-     */
-    @Bean
-    public HttpSessionEventPublisher httpSessionEventPublisher() {
-        return new HttpSessionEventPublisher();
+    public <S extends Session> SessionRegistry sessionRegistry(
+            FindByIndexNameSessionRepository<S> sessionRepository,
+            OidcUserSubjectExtractor subjectExtractor
+    ) {
+        return new SpringSessionBackedSessionRegistry<>(sessionRepository) {
+            @Override
+            protected String name(Object principal) {
+                return subjectExtractor.extract(principal).orElseGet(() -> super.name(principal));
+            }
+        };
     }
 
 

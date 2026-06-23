@@ -1,9 +1,11 @@
 package com.bbd.securitygateway;
 
+import com.bbd.securitygateway.config.TestSessionRepositoryConfig;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.Primary;
 import org.springframework.security.oauth2.client.registration.ClientRegistration;
 import org.springframework.security.oauth2.client.registration.ClientRegistrationRepository;
@@ -15,6 +17,7 @@ import org.springframework.security.oauth2.jwt.JwtDecoder;
 import java.time.Instant;
 
 @SpringBootTest(properties = "security-gateway.frontend.base-url=http://frontend.test:3000")
+@Import(TestSessionRepositoryConfig.class)
 class GatewayApplicationTests {
 
 	@Test

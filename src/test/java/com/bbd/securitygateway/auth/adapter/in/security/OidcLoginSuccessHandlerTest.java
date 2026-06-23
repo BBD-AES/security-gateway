@@ -7,11 +7,14 @@ import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.mock.web.MockHttpSession;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.core.session.SessionInformation;
+import org.springframework.security.core.session.SessionRegistry;
 import org.springframework.security.core.session.SessionRegistryImpl;
 import org.springframework.security.oauth2.client.authentication.OAuth2AuthenticationToken;
 import org.springframework.security.oauth2.core.oidc.OidcIdToken;
 import org.springframework.security.oauth2.core.oidc.user.DefaultOidcUser;
 import org.springframework.security.oauth2.core.oidc.user.OidcUser;
+import org.springframework.session.FindByIndexNameSessionRepository;
 
 import java.time.Instant;
 import java.util.List;
@@ -31,7 +34,7 @@ class OidcLoginSuccessHandlerTest {
 
     @Test
     void 같은_사용자의_기존_세션을_만료시키고_현재_세션만_유지한다() throws Exception {
-        SessionRegistryImpl sessionRegistry = new SessionRegistryImpl();
+        SessionRegistry sessionRegistry = sameUserLookupSessionRegistry();
         OidcLoginSuccessHandler handler = new OidcLoginSuccessHandler(
                 sessionRegistry,
                 subjectExtractor,
@@ -55,6 +58,10 @@ class OidcLoginSuccessHandlerTest {
 
         assertTrue(sessionRegistry.getSessionInformation(previousSessionId).isExpired());
         assertFalse(sessionRegistry.getSessionInformation(currentSession.getId()).isExpired());
+        assertEquals(
+                "same-user",
+                currentSession.getAttribute(FindByIndexNameSessionRepository.PRINCIPAL_NAME_INDEX_NAME)
+        );
         assertEquals(FRONTEND_BASE_URL + "/main", response.getRedirectedUrl());
     }
 
@@ -105,6 +112,29 @@ class OidcLoginSuccessHandlerTest {
         FrontendProperties properties = new FrontendProperties();
         properties.setBaseUrl(FRONTEND_BASE_URL);
         return properties;
+    }
+
+    private SessionRegistry sameUserLookupSessionRegistry() {
+        return new SessionRegistryImpl() {
+            @Override
+            public List<Object> getAllPrincipals() {
+                throw new UnsupportedOperationException("현재 사용자 기준 조회만 사용해야 합니다.");
+            }
+
+            @Override
+            public List<SessionInformation> getAllSessions(Object principal, boolean includeExpiredSessions) {
+                String currentUserKey = subjectExtractor.extract(principal).orElse(null);
+
+                return super.getAllPrincipals().stream()
+                        .filter(savedPrincipal -> currentUserKey != null)
+                        .filter(savedPrincipal -> currentUserKey.equals(
+                                subjectExtractor.extract(savedPrincipal).orElse(null)
+                        ))
+                        .flatMap(savedPrincipal -> super.getAllSessions(savedPrincipal, includeExpiredSessions).stream())
+                        .filter(sessionInformation -> includeExpiredSessions || !sessionInformation.isExpired())
+                        .toList();
+            }
+        };
     }
 
     private OidcUser oidcUser(String subject) {

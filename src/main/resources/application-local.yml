@@ -5,6 +5,7 @@ server:
   servlet:
     session:
       cookie:
+        name: JSESSIONID
         http-only: true
         secure: ${COOKIE_SECURE:false}
         same-site: lax
@@ -27,6 +28,15 @@ spring:
   threads:
     virtual:
       enabled: true
+
+  session:
+    timeout: ${SESSION_TIMEOUT:30m}
+    data:
+      redis:
+        repository-type: indexed
+        namespace: ${REDIS_SESSION_NAMESPACE:security-gateway:session}
+        flush-mode: ${REDIS_SESSION_FLUSH_MODE:on-save}
+        save-mode: ${REDIS_SESSION_SAVE_MODE:on-set-attribute}
 
   data:
     redis:

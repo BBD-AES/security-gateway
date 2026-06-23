@@ -12,6 +12,7 @@ import org.springframework.security.core.session.SessionRegistry;
 import org.springframework.security.web.DefaultRedirectStrategy;
 import org.springframework.security.web.RedirectStrategy;
 import org.springframework.security.web.authentication.AuthenticationSuccessHandler;
+import org.springframework.session.FindByIndexNameSessionRepository;
 import org.springframework.stereotype.Component;
 
 import java.io.IOException;
@@ -58,11 +59,11 @@ public class OidcLoginSuccessHandler implements AuthenticationSuccessHandler {
             return;
         }
 
-        String currentSessionId = session.getId();
         String currentUserKey = extractUserKey(authentication.getPrincipal());
+        session.setAttribute(FindByIndexNameSessionRepository.PRINCIPAL_NAME_INDEX_NAME, currentUserKey);
 
         // 중복 세션 로그인 흐름
-        expireOtherSessionsOfSameUser(currentSessionId, currentUserKey);
+        expireOtherSessionsOfSameUser(session.getId(), authentication.getPrincipal());
 
         // 로그인 성공 후 main 페이지로 리다이렉트한다.
         // defaultSuccessUrl 대신 직접 RedirectStrategy를 사용하는 이유는
@@ -70,17 +71,8 @@ public class OidcLoginSuccessHandler implements AuthenticationSuccessHandler {
         redirectStrategy.sendRedirect(request, response, frontendProperties.mainUrl());
     }
 
-    private void expireOtherSessionsOfSameUser(String currentSessionId, String currentUserKey) {
-        // SessionRegistry에 등록된 모든 principal을 순회한다.
-        // principal은 Spring Security가 세션에 저장한 인증 사용자 객체다.
-        sessionRegistry.getAllPrincipals().forEach(principal -> {
-            String userKey = extractUserKey(principal);
-
-            if (currentUserKey.equals(userKey)) {
-                // 동일한 세션이 존재한다면 기존 세션을 만료 처리한다.
-                expireSessionsExceptCurrent(principal, currentSessionId);
-            }
-        });
+    private void expireOtherSessionsOfSameUser(String currentSessionId, Object principal) {
+        expireSessionsExceptCurrent(principal, currentSessionId);
     }
 
     private void expireSessionsExceptCurrent(Object principal, String currentSessionId) {

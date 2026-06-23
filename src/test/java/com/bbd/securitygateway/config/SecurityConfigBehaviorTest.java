@@ -8,8 +8,10 @@ import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.Primary;
 import org.springframework.http.HttpHeaders;
+import org.springframework.security.core.session.SessionRegistry;
 import org.springframework.security.oauth2.client.registration.ClientRegistration;
 import org.springframework.security.oauth2.client.registration.ClientRegistrationRepository;
 import org.springframework.security.oauth2.client.registration.InMemoryClientRegistrationRepository;
@@ -17,12 +19,14 @@ import org.springframework.security.oauth2.core.AuthorizationGrantType;
 import org.springframework.security.oauth2.jwt.BadJwtException;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
+import org.springframework.session.security.SpringSessionBackedSessionRegistry;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.web.context.WebApplicationContext;
 
 import java.time.Instant;
 
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.nullValue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -36,6 +40,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         "security-gateway.frontend.base-url=http://frontend.test:3000",
         "security-gateway.frontend.allowed-origins=http://frontend.test:3000"
 })
+@Import(TestSessionRepositoryConfig.class)
 class SecurityConfigBehaviorTest {
 
     private static final String FRONTEND_ORIGIN = "http://frontend.test:3000";
@@ -46,6 +51,9 @@ class SecurityConfigBehaviorTest {
     @Autowired
     @Qualifier("springSecurityFilterChain")
     private Filter springSecurityFilterChain;
+
+    @Autowired
+    private SessionRegistry sessionRegistry;
 
     private MockMvc mockMvc;
 
@@ -107,6 +115,11 @@ class SecurityConfigBehaviorTest {
     void 현재_개발정책상_csrf가_post_요청을_먼저_차단하지_않는다() throws Exception {
         mockMvc.perform(post("/api/auth/me"))
                 .andExpect(status().isMethodNotAllowed());
+    }
+
+    @Test
+    void 세션_레지스트리는_spring_session_기반_구현을_사용한다() {
+        assertInstanceOf(SpringSessionBackedSessionRegistry.class, sessionRegistry);
     }
 
     @TestConfiguration
