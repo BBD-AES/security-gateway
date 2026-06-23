@@ -34,6 +34,8 @@ import java.util.List;
 public class IdempotencyKeyEnforcementFilter extends OncePerRequestFilter {
 
     private static final String HEADER = "Idempotency-Key";
+    private static final String MISSING_HEADER_BODY =
+            "{\"code\":\"IDEM400\",\"message\":\"Idempotency-Key 헤더가 필요합니다.\"}";
     // 변경 API 가 사는 백엔드 서비스 prefix. POST 가 이 경로로 갈 때만 헤더를 강제.
     private static final List<String> MUTATING_PREFIXES =
             List.of("/item", "/inventory", "/sales", "/procurement", "/user");
@@ -45,8 +47,7 @@ public class IdempotencyKeyEnforcementFilter extends OncePerRequestFilter {
             response.setStatus(HttpStatus.BAD_REQUEST.value());
             response.setContentType(MediaType.APPLICATION_JSON_VALUE);
             response.setCharacterEncoding("UTF-8");
-            response.getWriter().write(
-                    "{\"code\":\"IDEM400\",\"message\":\"Idempotency-Key 헤더가 필요합니다.\"}");
+            response.getWriter().write(MISSING_HEADER_BODY);
             return;
         }
         chain.doFilter(request, response);
