@@ -10,6 +10,13 @@ server:
         same-site: lax
         path: /
 
+security-gateway:
+  frontend:
+    base-url: ${FRONTEND_BASE_URL}
+    allowed-origins: ${FRONTEND_ALLOWED_ORIGINS:${FRONTEND_BASE_URL}}
+    login-path: ${FRONTEND_LOGIN_PATH:/login}
+    main-path: ${FRONTEND_MAIN_PATH:/main}
+
 spring:
   config:
     import: optional:file:.env[.properties]

@@ -1,5 +1,6 @@
 package com.bbd.securitygateway.auth.adapter.in.security;
 
+import com.bbd.securitygateway.config.FrontendProperties;
 import org.junit.jupiter.api.Test;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
@@ -23,12 +24,19 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class OidcLoginSuccessHandlerTest {
 
+    private static final String FRONTEND_BASE_URL = "http://frontend.test:3000";
+
     private final OidcUserSubjectExtractor subjectExtractor = new OidcUserSubjectExtractor();
+    private final FrontendProperties frontendProperties = frontendProperties();
 
     @Test
     void 같은_사용자의_기존_세션을_만료시키고_현재_세션만_유지한다() throws Exception {
         SessionRegistryImpl sessionRegistry = new SessionRegistryImpl();
-        OidcLoginSuccessHandler handler = new OidcLoginSuccessHandler(sessionRegistry, subjectExtractor);
+        OidcLoginSuccessHandler handler = new OidcLoginSuccessHandler(
+                sessionRegistry,
+                subjectExtractor,
+                frontendProperties
+        );
 
         OidcUser previousPrincipal = oidcUser("same-user");
         OidcUser currentPrincipal = oidcUser("same-user");
@@ -47,26 +55,34 @@ class OidcLoginSuccessHandlerTest {
 
         assertTrue(sessionRegistry.getSessionInformation(previousSessionId).isExpired());
         assertFalse(sessionRegistry.getSessionInformation(currentSession.getId()).isExpired());
-        assertEquals("http://localhost:5173/main", response.getRedirectedUrl());
+        assertEquals(FRONTEND_BASE_URL + "/main", response.getRedirectedUrl());
     }
 
     @Test
     void 로그인_성공_흐름에서_세션이_없으면_로그인_에러_페이지로_보낸다() throws Exception {
         SessionRegistryImpl sessionRegistry = new SessionRegistryImpl();
-        OidcLoginSuccessHandler handler = new OidcLoginSuccessHandler(sessionRegistry, subjectExtractor);
+        OidcLoginSuccessHandler handler = new OidcLoginSuccessHandler(
+                sessionRegistry,
+                subjectExtractor,
+                frontendProperties
+        );
 
         MockHttpServletRequest request = new MockHttpServletRequest("GET", "/login/oauth2/code/keycloak");
         MockHttpServletResponse response = new MockHttpServletResponse();
 
         handler.onAuthenticationSuccess(request, response, authentication(oidcUser("same-user")));
 
-        assertEquals("http://localhost:5173/login?error=session", response.getRedirectedUrl());
+        assertEquals(FRONTEND_BASE_URL + "/login?error=session", response.getRedirectedUrl());
     }
 
     @Test
     void 예상하지_않은_principal_타입이면_세션_비교를_실패시킨다() {
         SessionRegistryImpl sessionRegistry = new SessionRegistryImpl();
-        OidcLoginSuccessHandler handler = new OidcLoginSuccessHandler(sessionRegistry, subjectExtractor);
+        OidcLoginSuccessHandler handler = new OidcLoginSuccessHandler(
+                sessionRegistry,
+                subjectExtractor,
+                frontendProperties
+        );
 
         MockHttpServletRequest request = new MockHttpServletRequest("GET", "/login/oauth2/code/keycloak");
         request.setSession(new MockHttpSession(null, "current-session-5678"));
@@ -83,6 +99,12 @@ class OidcLoginSuccessHandlerTest {
 
     private Authentication authentication(OidcUser oidcUser) {
         return new OAuth2AuthenticationToken(oidcUser, oidcUser.getAuthorities(), "keycloak");
+    }
+
+    private FrontendProperties frontendProperties() {
+        FrontendProperties properties = new FrontendProperties();
+        properties.setBaseUrl(FRONTEND_BASE_URL);
+        return properties;
     }
 
     private OidcUser oidcUser(String subject) {

@@ -14,7 +14,7 @@ import org.springframework.security.oauth2.jwt.JwtDecoder;
 
 import java.time.Instant;
 
-@SpringBootTest
+@SpringBootTest(properties = "security-gateway.frontend.base-url=http://frontend.test:3000")
 class GatewayApplicationTests {
 
 	@Test
