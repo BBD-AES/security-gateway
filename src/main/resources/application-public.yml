@@ -33,10 +33,11 @@ spring:
     timeout: ${SESSION_TIMEOUT:30m}
     data:
       redis:
-        repository-type: default
+        repository-type: indexed
         namespace: ${REDIS_SESSION_NAMESPACE:security-gateway:session}
         flush-mode: ${REDIS_SESSION_FLUSH_MODE:on-save}
         save-mode: ${REDIS_SESSION_SAVE_MODE:on-set-attribute}
+        configure-action: ${REDIS_SESSION_CONFIGURE_ACTION:none}
 
   data:
     redis:
@@ -45,6 +46,7 @@ spring:
       password: ${REDIS_PASSWORD:}
       ssl:
         enabled: ${REDIS_SSL_ENABLED:true}
+
 
   security:
     oauth2:
