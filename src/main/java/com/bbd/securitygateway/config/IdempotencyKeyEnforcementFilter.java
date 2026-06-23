@@ -64,7 +64,8 @@ public class IdempotencyKeyEnforcementFilter extends OncePerRequestFilter {
         if (!mutating) {
             return false;
         }
-        // 조회성 POST(검색 등)는 멱등키 강제 대상에서 제외.
-        return QUERY_POST_PATTERNS.stream().noneMatch(path::contains);
+        // 조회성 POST(검색 등)는 멱등키 강제 대상에서 제외 — 단 세그먼트 정밀 매칭.
+        // substring 오탐 방지: "/search" 는 경로 세그먼트일 때만 매칭(예: /items/search/bulk ✓ / /sales/saved-searches ✗ → 강제 유지).
+        return QUERY_POST_PATTERNS.stream().noneMatch(seg -> path.endsWith(seg) || path.contains(seg + "/"));
     }
 }
