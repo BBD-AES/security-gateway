@@ -6,6 +6,7 @@ import org.springframework.security.oauth2.client.web.DefaultOAuth2Authorization
 import org.springframework.security.oauth2.client.web.OAuth2AuthorizationRequestResolver;
 import org.springframework.security.oauth2.core.endpoint.OAuth2AuthorizationRequest;
 import org.springframework.stereotype.Component;
+import org.springframework.util.StringUtils;
 
 import java.util.Set;
 
@@ -48,7 +49,7 @@ public class KeycloakAuthorizationRequestResolver implements OAuth2Authorization
         }
 
         String kcAction = request.getParameter(KC_ACTION_PARAMETER);
-        if (!ALLOWED_KC_ACTIONS.contains(kcAction)) {
+        if (!StringUtils.hasText(kcAction)) {
             return authorizationRequest;
         }
 
