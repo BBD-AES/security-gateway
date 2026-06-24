@@ -1,5 +1,6 @@
 package com.bbd.securitygateway.config;
 
+import com.bbd.securitygateway.auth.adapter.in.security.ApiAwareSessionExpiredStrategy;
 import com.bbd.securitygateway.auth.adapter.in.security.ApiExceptionAccessDeniedHandler;
 import com.bbd.securitygateway.auth.adapter.in.security.ApiExceptionAuthenticationEntryPoint;
 import com.bbd.securitygateway.auth.adapter.in.security.OidcLoginSuccessHandler;
@@ -106,7 +107,8 @@ public class SecurityConfig {
                                                       LogoutSuccessHandler oidcLogoutSuccessHandler,
                                                       OidcLoginSuccessHandler oidcLoginSuccessHandler,
                                                       CorsConfigurationSource corsConfigurationSource,
-                                                      SessionRegistry sessionRegistry
+                                                      SessionRegistry sessionRegistry,
+                                                      ApiAwareSessionExpiredStrategy sessionExpiredStrategy
     ) throws Exception {
 
         return http
@@ -183,7 +185,9 @@ public class SecurityConfig {
                         .sessionFixation(SessionManagementConfigurer.SessionFixationConfigurer::changeSessionId)
                         .maximumSessions(1)
                         .maxSessionsPreventsLogin(false)
-                        .expiredUrl(frontendProperties.loginExpiredUrl())
+                        // 만료 세션: API/XHR → 401(프론트가 로그인으로 리다이렉트), 내비게이션 → 만료 페이지.
+                        // (.expiredUrl 은 모든 요청을 302 시켜 SPA 가 만료를 감지 못 하던 문제 해소)
+                        .expiredSessionStrategy(sessionExpiredStrategy)
                         .sessionRegistry(sessionRegistry)
                 )
                 .build();
