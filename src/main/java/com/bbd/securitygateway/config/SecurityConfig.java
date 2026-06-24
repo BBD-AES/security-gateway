@@ -14,6 +14,7 @@ import org.springframework.security.config.annotation.web.configurers.AbstractHt
 import org.springframework.security.config.annotation.web.configurers.SessionManagementConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.core.session.SessionRegistry;
+import org.springframework.security.oauth2.client.web.OAuth2AuthorizationRequestResolver;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.logout.LogoutSuccessHandler;
 import org.springframework.session.FindByIndexNameSessionRepository;
@@ -108,7 +109,8 @@ public class SecurityConfig {
                                                       OidcLoginSuccessHandler oidcLoginSuccessHandler,
                                                       CorsConfigurationSource corsConfigurationSource,
                                                       SessionRegistry sessionRegistry,
-                                                      ApiAwareSessionExpiredStrategy sessionExpiredStrategy
+                                                      ApiAwareSessionExpiredStrategy sessionExpiredStrategy,
+                                                      OAuth2AuthorizationRequestResolver authorizationRequestResolver
     ) throws Exception {
 
         return http
@@ -139,6 +141,9 @@ public class SecurityConfig {
                 // 사용자를 Keycloak 로그인 페이지로 리다이렉트하고,
                 // 로그인 성공 후 callback을 받아 세션을 만드는 기능
                 .oauth2Login(oauth2 -> oauth2
+                        .authorizationEndpoint(authorization -> authorization
+                                .authorizationRequestResolver(authorizationRequestResolver)
+                        )
                         .successHandler(oidcLoginSuccessHandler)
                 )
                 // 로그아웃은 어떻게 할지 정한다.
