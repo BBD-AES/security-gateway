@@ -49,7 +49,7 @@ public class KeycloakAuthorizationRequestResolver implements OAuth2Authorization
         }
 
         String kcAction = request.getParameter(KC_ACTION_PARAMETER);
-        if (!StringUtils.hasText(kcAction)) {
+        if (!StringUtils.hasText(kcAction) || !ALLOWED_KC_ACTIONS.contains(kcAction)) {
             return authorizationRequest;
         }
 

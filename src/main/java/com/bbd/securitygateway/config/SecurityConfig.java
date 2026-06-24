@@ -257,8 +257,7 @@ public class SecurityConfig {
        maximumSessions(1) 설정과 함께 사용되며,
        Keycloak sub 기준으로 어떤 principal이 어떤 세션을 가지고 있는지를 Redis 세션 인덱스로 관리한다.
 
-       또한 커스텀 로그인 성공 핸들러에서
-       sessionRegistry.getAllSessions를 통해
+       Spring Security의 maximumSessions(1)이
        기존 로그인 세션을 찾아 만료시키는 데 사용한다.
      */
     @Bean

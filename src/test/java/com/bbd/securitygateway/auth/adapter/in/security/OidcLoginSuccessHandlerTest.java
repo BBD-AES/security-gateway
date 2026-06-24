@@ -7,9 +7,6 @@ import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.mock.web.MockHttpSession;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
-import org.springframework.security.core.session.SessionInformation;
-import org.springframework.security.core.session.SessionRegistry;
-import org.springframework.security.core.session.SessionRegistryImpl;
 import org.springframework.security.oauth2.client.authentication.OAuth2AuthenticationToken;
 import org.springframework.security.oauth2.core.oidc.OidcIdToken;
 import org.springframework.security.oauth2.core.oidc.user.DefaultOidcUser;
@@ -21,7 +18,6 @@ import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -33,22 +29,15 @@ class OidcLoginSuccessHandlerTest {
     private final FrontendProperties frontendProperties = frontendProperties();
 
     @Test
-    void 같은_사용자의_기존_세션을_만료시키고_현재_세션만_유지한다() throws Exception {
-        SessionRegistry sessionRegistry = sameUserLookupSessionRegistry();
+    void 로그인_성공_시_keycloak_sub를_세션_인덱스로_저장하고_main으로_보낸다() throws Exception {
         OidcLoginSuccessHandler handler = new OidcLoginSuccessHandler(
-                sessionRegistry,
                 subjectExtractor,
                 frontendProperties
         );
 
-        OidcUser previousPrincipal = oidcUser("same-user");
         OidcUser currentPrincipal = oidcUser("same-user");
 
-        String previousSessionId = "previous-session-1234";
         MockHttpSession currentSession = new MockHttpSession(null, "current-session-5678");
-
-        sessionRegistry.registerNewSession(previousSessionId, previousPrincipal);
-        sessionRegistry.registerNewSession(currentSession.getId(), currentPrincipal);
 
         MockHttpServletRequest request = new MockHttpServletRequest("GET", "/login/oauth2/code/keycloak");
         request.setSession(currentSession);
@@ -56,8 +45,6 @@ class OidcLoginSuccessHandlerTest {
 
         handler.onAuthenticationSuccess(request, response, authentication(currentPrincipal));
 
-        assertTrue(sessionRegistry.getSessionInformation(previousSessionId).isExpired());
-        assertFalse(sessionRegistry.getSessionInformation(currentSession.getId()).isExpired());
         assertEquals(
                 "same-user",
                 currentSession.getAttribute(FindByIndexNameSessionRepository.PRINCIPAL_NAME_INDEX_NAME)
@@ -67,9 +54,7 @@ class OidcLoginSuccessHandlerTest {
 
     @Test
     void 로그인_성공_흐름에서_세션이_없으면_로그인_에러_페이지로_보낸다() throws Exception {
-        SessionRegistryImpl sessionRegistry = new SessionRegistryImpl();
         OidcLoginSuccessHandler handler = new OidcLoginSuccessHandler(
-                sessionRegistry,
                 subjectExtractor,
                 frontendProperties
         );
@@ -84,9 +69,7 @@ class OidcLoginSuccessHandlerTest {
 
     @Test
     void 예상하지_않은_principal_타입이면_세션_비교를_실패시킨다() {
-        SessionRegistryImpl sessionRegistry = new SessionRegistryImpl();
         OidcLoginSuccessHandler handler = new OidcLoginSuccessHandler(
-                sessionRegistry,
                 subjectExtractor,
                 frontendProperties
         );
@@ -112,29 +95,6 @@ class OidcLoginSuccessHandlerTest {
         FrontendProperties properties = new FrontendProperties();
         properties.setBaseUrl(FRONTEND_BASE_URL);
         return properties;
-    }
-
-    private SessionRegistry sameUserLookupSessionRegistry() {
-        return new SessionRegistryImpl() {
-            @Override
-            public List<Object> getAllPrincipals() {
-                throw new UnsupportedOperationException("현재 사용자 기준 조회만 사용해야 합니다.");
-            }
-
-            @Override
-            public List<SessionInformation> getAllSessions(Object principal, boolean includeExpiredSessions) {
-                String currentUserKey = subjectExtractor.extract(principal).orElse(null);
-
-                return super.getAllPrincipals().stream()
-                        .filter(savedPrincipal -> currentUserKey != null)
-                        .filter(savedPrincipal -> currentUserKey.equals(
-                                subjectExtractor.extract(savedPrincipal).orElse(null)
-                        ))
-                        .flatMap(savedPrincipal -> super.getAllSessions(savedPrincipal, includeExpiredSessions).stream())
-                        .filter(sessionInformation -> includeExpiredSessions || !sessionInformation.isExpired())
-                        .toList();
-            }
-        };
     }
 
     private OidcUser oidcUser(String subject) {

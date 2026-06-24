@@ -8,7 +8,6 @@ import jakarta.servlet.http.HttpSession;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.core.Authentication;
-import org.springframework.security.core.session.SessionRegistry;
 import org.springframework.security.web.DefaultRedirectStrategy;
 import org.springframework.security.web.RedirectStrategy;
 import org.springframework.security.web.authentication.AuthenticationSuccessHandler;
@@ -22,11 +21,10 @@ import java.io.IOException;
 
  SecurityConfig는 필터체인 배선만 담당하고,
  같은 Keycloak 사용자로 이미 로그인된 기존 세션을 만료시키는 정책은
- 이 Adapter에서 별도로 수행한다.
+ maximumSessions(1)에서 일관되게 수행한다.
 
  목적:
- - 같은 Keycloak 사용자로 이미 로그인된 기존 세션이 있으면 기존 세션을 만료시킨다.
- - 새로 로그인한 현재 세션만 유지한다.
+ - Spring Session Redis 인덱스가 Keycloak sub 기준으로 세션을 찾을 수 있게 principal name을 저장한다.
  - 로그인 성공 후 main 페이지로 이동시킨다.
  */
 @Slf4j
@@ -34,7 +32,6 @@ import java.io.IOException;
 @RequiredArgsConstructor
 public class OidcLoginSuccessHandler implements AuthenticationSuccessHandler {
 
-    private final SessionRegistry sessionRegistry;
     private final OidcUserSubjectExtractor subjectExtractor;
     private final FrontendProperties frontendProperties;
     private final RedirectStrategy redirectStrategy = new DefaultRedirectStrategy();
@@ -62,35 +59,9 @@ public class OidcLoginSuccessHandler implements AuthenticationSuccessHandler {
         String currentUserKey = extractUserKey(authentication.getPrincipal());
         session.setAttribute(FindByIndexNameSessionRepository.PRINCIPAL_NAME_INDEX_NAME, currentUserKey);
 
-        // 중복 세션 로그인 흐름
-        expireOtherSessionsOfSameUser(session.getId(), authentication.getPrincipal());
-
         // 로그인 성공 후 main 페이지로 리다이렉트한다.
-        // defaultSuccessUrl 대신 직접 RedirectStrategy를 사용하는 이유는
-        // 위의 기존 세션 만료 로직을 실행한 뒤 원하는 위치로 보내기 위해서다.
+        // defaultSuccessUrl 대신 직접 RedirectStrategy를 사용해 프론트 URL 설정을 한 곳에서 재사용한다.
         redirectStrategy.sendRedirect(request, response, frontendProperties.mainUrl());
-    }
-
-    private void expireOtherSessionsOfSameUser(String currentSessionId, Object principal) {
-        expireSessionsExceptCurrent(principal, currentSessionId);
-    }
-
-    private void expireSessionsExceptCurrent(Object principal, String currentSessionId) {
-        // false는 이미 만료 처리된 세션은 제외하고 조회한다는 의미다.
-        sessionRegistry.getAllSessions(principal, false).forEach(sessionInformation -> {
-            if (!sessionInformation.getSessionId().equals(currentSessionId)) {
-                // 실제 세션 객체를 즉시 삭제한다기보다는,
-                // Spring Security가 이후 해당 세션 요청을 만료된 세션으로 인식하게 한다.
-                sessionInformation.expireNow();
-
-                // 세션 ID는 인증 정보로 취급될 수 있으므로 전체 값을 남기지 않고 일부만 마스킹해서 기록한다.
-                log.info(
-                        "중복 OAuth2 로그인으로 기존 세션을 만료 처리했습니다. currentSession={}, expiredSession={}",
-                        maskForLog(currentSessionId),
-                        maskForLog(sessionInformation.getSessionId())
-                );
-            }
-        });
     }
 
     private String extractUserKey(Object principal) {
@@ -108,21 +79,5 @@ public class OidcLoginSuccessHandler implements AuthenticationSuccessHandler {
                 "OIDC 로그인에서 예상하지 않은 principal 타입입니다: "
                         + (principal == null ? "null" : principal.getClass().getName())
         );
-    }
-
-    /*
-     세션 ID는 쿠키 인증에 쓰이는 민감한 값이므로 로그에 전체를 남기지 않는다.
-     운영 추적에 필요한 최소한의 구분만 가능하도록 앞/뒤 일부만 남기고 마스킹한다.
-     */
-    private String maskForLog(String value) {
-        if (value == null || value.isBlank()) {
-            return "blank";
-        }
-
-        if (value.length() <= 8) {
-            return "****";
-        }
-
-        return value.substring(0, 4) + "..." + value.substring(value.length() - 4);
     }
 }
