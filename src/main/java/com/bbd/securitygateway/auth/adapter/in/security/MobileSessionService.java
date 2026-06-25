@@ -32,6 +32,9 @@ public class MobileSessionService {
 
         MobileSessionStore mobileSessionStore = mobileSessionStoreProvider.getIfAvailable();
         if (mobileSessionStore == null) {
+            // fail-open: Redis(StringRedisTemplate) 미구성/부재 시 단일 기기 제한을 강제하지 않고 통과시킨다.
+            // B2B 가용성 우선 — 저장소 장애로 전 사용자 인증을 막는(fail-closed) 것보다 단말 제한 일시 완화가 낫다는 판단.
+            // (보안 핵심이 아닌 편의 제어이므로 의도된 선택. fail-closed 가 필요하면 여기 정책을 바꾼다.)
             return true;
         }
 

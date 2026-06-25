@@ -3,77 +3,97 @@ package com.bbd.securitygateway.auth.adapter.in.security;
 import lombok.RequiredArgsConstructor;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.data.redis.core.script.DefaultRedisScript;
+import org.springframework.data.redis.core.script.RedisScript;
 import org.springframework.stereotype.Component;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.util.List;
 
+/**
+ * 모바일 단일 기기 세션 저장소(Redis). 값 = "sid|authEpochSeconds".
+ *
+ * register/validate 와 remove 를 모두 <b>Lua 스크립트로 원자화</b>한다.
+ * 비원자 GET→비교→SET 은 동시 로그인 시 둘 다 current==null 을 보고 양쪽 다 통과할 수 있어(레이스),
+ * 단일 기기 보장이 깨졌다. 원자 스크립트로 GET·비교·SET 을 한 호출에 묶어 이를 제거한다.
+ *
+ * 점유 규칙(다른 sid): auth_time 이 <b>엄격히 더 최신(&gt;)</b>일 때만 점유한다(기존 &gt;= 는 같은 초 두 로그인이
+ * 서로 덮어쓰며 둘 다 통과하는 핑퐁을 유발). 같은 sid 는 항상 통과(토큰 refresh = TTL 갱신).
+ * 트레이드오프: Keycloak auth_time 이 초 단위라, 같은 초에 로그인한 신규 기기는 1회 차단된다(1초 뒤 재로그인으로 점유).
+ * 단일 기기(둘 다 유효 방지)를 우선한 선택.
+ */
 @Component
 @ConditionalOnBean(StringRedisTemplate.class)
 @RequiredArgsConstructor
 public class RedisMobileSessionStore implements MobileSessionStore {
 
-    private static final String DELIMITER = "|";
+    // KEYS[1]=세션키, ARGV[1]=sid, ARGV[2]=authEpochSeconds, ARGV[3]=ttlSeconds.
+    // 반환 1=점유(SET 함, 통과) / 0=차단(다른 기기가 같거나 더 최신).
+    private static final RedisScript<Long> REGISTER_OR_VALIDATE = new DefaultRedisScript<>("""
+            local cur = redis.call('GET', KEYS[1])
+            local sid = ARGV[1]
+            local auth = tonumber(ARGV[2])
+            local ttl = tonumber(ARGV[3])
+            local take = false
+            if cur == false then
+                take = true
+            else
+                local i = string.find(cur, '|', 1, true)
+                if i == nil then
+                    take = true
+                else
+                    local curSid = string.sub(cur, 1, i - 1)
+                    local curAuth = tonumber(string.sub(cur, i + 1))
+                    if curSid == sid then
+                        take = true
+                    elseif curAuth == nil or auth > curAuth then
+                        take = true
+                    end
+                end
+            end
+            if take then
+                redis.call('SET', KEYS[1], sid .. '|' .. ARGV[2], 'EX', ttl)
+                return 1
+            end
+            return 0
+            """, Long.class);
+
+    // 저장된 current 가 내 sid 일 때만 삭제(로그아웃) — 다른 기기가 이미 점유했으면 건드리지 않음. 원자.
+    private static final RedisScript<Long> REMOVE_IF_CURRENT = new DefaultRedisScript<>("""
+            local cur = redis.call('GET', KEYS[1])
+            if cur == false then return 0 end
+            local i = string.find(cur, '|', 1, true)
+            local curSid = cur
+            if i ~= nil then curSid = string.sub(cur, 1, i - 1) end
+            if curSid == ARGV[1] then
+                redis.call('DEL', KEYS[1])
+                return 1
+            end
+            return 0
+            """, Long.class);
 
     private final StringRedisTemplate redisTemplate;
     private final MobileSessionProperties properties;
 
     @Override
     public boolean registerOrValidate(String userSub, String sessionId, Instant authenticatedAt, Duration ttl) {
-        String key = key(userSub);
-        MobileSessionRecord incoming = new MobileSessionRecord(sessionId, authenticatedAt);
-        MobileSessionRecord current = MobileSessionRecord.parse(redisTemplate.opsForValue().get(key));
-
-        if (current == null || current.isSameSession(sessionId) || incoming.isSameOrNewerThan(current)) {
-            redisTemplate.opsForValue().set(key, incoming.serialize(), ttl);
-            return true;
-        }
-
-        return false;
+        Long result = redisTemplate.execute(
+                REGISTER_OR_VALIDATE,
+                List.of(key(userSub)),
+                sessionId,
+                String.valueOf(authenticatedAt.getEpochSecond()),
+                String.valueOf(Math.max(1L, ttl.getSeconds()))
+        );
+        return result != null && result == 1L;
     }
 
     @Override
     public void removeIfCurrent(String userSub, String sessionId) {
-        String key = key(userSub);
-        MobileSessionRecord current = MobileSessionRecord.parse(redisTemplate.opsForValue().get(key));
-        if (current != null && current.isSameSession(sessionId)) {
-            redisTemplate.delete(key);
-        }
+        redisTemplate.execute(REMOVE_IF_CURRENT, List.of(key(userSub)), sessionId);
     }
 
     private String key(String userSub) {
         return properties.getKeyPrefix() + ":" + userSub;
-    }
-
-    private record MobileSessionRecord(String sessionId, Instant authenticatedAt) {
-
-        private String serialize() {
-            return sessionId + DELIMITER + authenticatedAt.getEpochSecond();
-        }
-
-        private boolean isSameSession(String sessionId) {
-            return this.sessionId.equals(sessionId);
-        }
-
-        private boolean isSameOrNewerThan(MobileSessionRecord other) {
-            return !authenticatedAt.isBefore(other.authenticatedAt);
-        }
-
-        private static MobileSessionRecord parse(String value) {
-            if (value == null || value.isBlank()) {
-                return null;
-            }
-
-            String[] parts = value.split("\\|", 2);
-            if (parts.length != 2 || parts[0].isBlank()) {
-                return null;
-            }
-
-            try {
-                return new MobileSessionRecord(parts[0], Instant.ofEpochSecond(Long.parseLong(parts[1])));
-            } catch (NumberFormatException ignored) {
-                return null;
-            }
-        }
     }
 }
