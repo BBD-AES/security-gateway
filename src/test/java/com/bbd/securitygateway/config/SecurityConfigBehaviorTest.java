@@ -163,6 +163,12 @@ class SecurityConfigBehaviorTest {
     }
 
     @Test
+    void user_scim_경로는_gateway_public_endpoint가_아니므로_인증을_요구한다() throws Exception {
+        mockMvc.perform(get("/user/scim/v2/Users"))
+                .andExpect(status().is3xxRedirection());
+    }
+
+    @Test
     void 세션_레지스트리는_spring_session_기반_구현을_사용한다() {
         assertInstanceOf(SpringSessionBackedSessionRegistry.class, sessionRegistry);
     }

@@ -26,6 +26,8 @@ import java.util.List;
  - POST 에만 강제한다. PATCH 는 "부수효과 있는 상태전이"와 "자연 멱등"이 섞여 게이트웨이가 구분할 수 없으므로
    PATCH 강제는 각 서비스가 담당(spec §1). 게이트웨이가 모든 PATCH 를 막으면 정당한 멱등 PATCH 가 400 으로 깨질 수 있다.
  - 백엔드 서비스 prefix 로 가는 POST 에만 적용 — oauth2/login/정적 리소스 POST 는 제외.
+ - /user/scim/** POST 는 제외한다. SCIM 멱등성/중복 처리 정책은 User Service 의 SCIM 어댑터가 담당하고,
+   게이트웨이는 인증과 라우팅만 유지한다. Idempotency-Key 헤더가 있으면 기본 헤더 전파로 그대로 downstream 에 전달된다.
  - bbd.idempotency.enforce-enabled=false 로 끌 수 있다.
 */
 @Component
@@ -39,6 +41,8 @@ public class IdempotencyKeyEnforcementFilter extends OncePerRequestFilter {
     // 변경 API 가 사는 백엔드 서비스 prefix. POST 가 이 경로로 갈 때만 헤더를 강제.
     private static final List<String> MUTATING_PREFIXES =
             List.of("/item", "/inventory", "/sales", "/procurement", "/user");
+    // 외부 프로비저닝 시스템의 SCIM POST 는 별도 표준/정책으로 처리하므로 게이트웨이 멱등키 강제에서 제외.
+    private static final List<String> EXCLUDED_POST_PREFIXES = List.of("/user/scim");
     // 비-멱등(조회성) POST 는 강제 제외 — 예: /api/v1/items/search/bulk(검색). 부수효과 없는 쿼리는 멱등키 불필요.
     private static final List<String> QUERY_POST_PATTERNS = List.of("/search");
 
@@ -62,6 +66,9 @@ public class IdempotencyKeyEnforcementFilter extends OncePerRequestFilter {
         String path = request.getRequestURI();
         boolean mutating = MUTATING_PREFIXES.stream().anyMatch(p -> path.equals(p) || path.startsWith(p + "/"));
         if (!mutating) {
+            return false;
+        }
+        if (EXCLUDED_POST_PREFIXES.stream().anyMatch(prefix -> path.equals(prefix) || path.startsWith(prefix + "/"))) {
             return false;
         }
         // 조회성 POST(검색 등)는 멱등키 강제 대상에서 제외 — 단 세그먼트 정밀 매칭.
