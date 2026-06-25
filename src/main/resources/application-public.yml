@@ -17,6 +17,11 @@ security-gateway:
     allowed-origins: ${FRONTEND_ALLOWED_ORIGINS:${FRONTEND_BASE_URL}}
     login-path: ${FRONTEND_LOGIN_PATH:/login}
     main-path: ${FRONTEND_MAIN_PATH:/main}
+  mobile-session:
+    enabled: ${MOBILE_SESSION_LIMIT_ENABLED:true}
+    client-id: ${MOBILE_CLIENT_ID:bbd-mobile-android}
+    key-prefix: ${MOBILE_SESSION_KEY_PREFIX:security-gateway:mobile-session}
+    ttl: ${MOBILE_SESSION_TTL:7d}
 
 spring:
   config:

@@ -3,6 +3,7 @@ package com.bbd.securitygateway.config;
 import com.bbd.securitygateway.auth.adapter.in.security.ApiAwareSessionExpiredStrategy;
 import com.bbd.securitygateway.auth.adapter.in.security.ApiExceptionAccessDeniedHandler;
 import com.bbd.securitygateway.auth.adapter.in.security.ApiExceptionAuthenticationEntryPoint;
+import com.bbd.securitygateway.auth.adapter.in.security.MobileSessionLimitFilter;
 import com.bbd.securitygateway.auth.adapter.in.security.OidcLoginSuccessHandler;
 import com.bbd.securitygateway.auth.adapter.in.security.OidcUserSubjectExtractor;
 import org.springframework.context.annotation.Bean;
@@ -15,6 +16,7 @@ import org.springframework.security.config.annotation.web.configurers.SessionMan
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.core.session.SessionRegistry;
 import org.springframework.security.oauth2.client.web.OAuth2AuthorizationRequestResolver;
+import org.springframework.security.oauth2.server.resource.web.authentication.BearerTokenAuthenticationFilter;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.logout.LogoutSuccessHandler;
 import org.springframework.session.FindByIndexNameSessionRepository;
@@ -95,7 +97,8 @@ public class SecurityConfig {
             HttpSecurity http,
             CorsConfigurationSource corsConfigurationSource,
             ApiExceptionAuthenticationEntryPoint authenticationEntryPoint,
-            ApiExceptionAccessDeniedHandler accessDeniedHandler
+            ApiExceptionAccessDeniedHandler accessDeniedHandler,
+            MobileSessionLimitFilter mobileSessionLimitFilter
     ) throws Exception {
         return http
                 // 모바일 전용 - Bearer 토큰
@@ -132,6 +135,7 @@ public class SecurityConfig {
                 .oauth2ResourceServer(resourceServer -> resourceServer
                         .jwt(Customizer.withDefaults())
                 )
+                .addFilterAfter(mobileSessionLimitFilter, BearerTokenAuthenticationFilter.class)
                 .build();
     }
 

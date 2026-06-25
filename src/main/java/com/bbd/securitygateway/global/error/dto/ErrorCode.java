@@ -20,6 +20,12 @@ public enum ErrorCode {
             "접근 권한이 없습니다."
     ),
 
+    AUTH_MOBILE_SESSION_REPLACED(
+            HttpStatus.UNAUTHORIZED,
+            "AUTH003",
+            "다른 기기에서 로그인되어 모바일 세션이 만료되었습니다."
+    ),
+
     INTERNAL_ERROR(
             HttpStatus.INTERNAL_SERVER_ERROR,
             "COMMON001",
