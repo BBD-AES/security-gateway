@@ -229,11 +229,14 @@ public class SecurityConfig {
         // Content-Type : application/json 요청 시 사용
         // X-Requested-With : Ajax 요청 식별용으로 사용될 수 있음
         // X-XSRF-TOKEN : CSRF 토큰을 헤더로 전달할 때 사용
+        // Idempotency-Key : 멱등 표준(POST/PATCH 재요청 dedup) 헤더 — 미허용 시 브라우저 preflight 가 막혀
+        //                   웹 콘솔의 수주 생성/종료(@Idempotent) 가 CORS 로 차단됨. allowCredentials(true) 라 "*" 불가→명시.
         config.setAllowedHeaders(List.of(
                 "Authorization",
                 "Content-Type",
                 "X-Requested-With",
-                "X-XSRF-TOKEN"
+                "X-XSRF-TOKEN",
+                "Idempotency-Key"
         ));
 
         // 쿠키, Authorization 헤더 등 인증 정보가 포함된 요청 허용
