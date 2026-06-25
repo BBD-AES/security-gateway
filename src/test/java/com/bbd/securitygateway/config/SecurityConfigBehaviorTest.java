@@ -28,17 +28,23 @@ import java.time.Instant;
 
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.nullValue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.options;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @SpringBootTest(properties = {
         "security-gateway.frontend.base-url=http://frontend.test:3000",
-        "security-gateway.frontend.allowed-origins=http://frontend.test:3000"
+        "security-gateway.frontend.allowed-origins=http://frontend.test:3000",
+        "USER_SERVICE_URI=http://localhost:18081",
+        "ITEM_SERVICE_URI=http://localhost:18082",
+        "INVENTORY_SERVICE_URI=http://localhost:18083",
+        "PROCUREMENT_SERVICE_URI=http://localhost:18084",
+        "SALES_SERVICE_URI=http://localhost:18085",
+        "COOKIE_SECURE=false"
 })
 @Import(TestSessionRepositoryConfig.class)
 class SecurityConfigBehaviorTest {
@@ -89,13 +95,9 @@ class SecurityConfigBehaviorTest {
     }
 
     @Test
-    void bearer_토큰이_없으면_웹_필터체인에서_api_auth_me를_세션_미인증_상태로_응답한다() throws Exception {
+    void bearer_토큰이_없고_세션도_없으면_api_auth_me는_로그인을_요구한다() throws Exception {
         mockMvc.perform(get("/api/auth/me"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.authenticated").value(false))
-                .andExpect(jsonPath("$.keycloakSub").value(nullValue()))
-                .andExpect(jsonPath("$.username").value(nullValue()))
-                .andExpect(jsonPath("$.message").value("로그인이 필요합니다."));
+                .andExpect(status().is3xxRedirection());
     }
 
     @Test
@@ -112,9 +114,16 @@ class SecurityConfigBehaviorTest {
     }
 
     @Test
-    void 현재_개발정책상_csrf가_post_요청을_먼저_차단하지_않는다() throws Exception {
+    void 인증이_필요한_post_요청은_csrf보다_먼저_로그인을_요구한다() throws Exception {
         mockMvc.perform(post("/api/auth/me"))
-                .andExpect(status().isMethodNotAllowed());
+                .andExpect(status().is3xxRedirection());
+    }
+
+    @Test
+    void gateway_health는_로그인_없이_허용한다() throws Exception {
+        mockMvc.perform(get("/health"))
+                .andExpect(status().isOk())
+                .andExpect(content().string("ok"));
     }
 
     @Test

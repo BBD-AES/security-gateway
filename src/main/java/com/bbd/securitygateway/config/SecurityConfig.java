@@ -32,6 +32,40 @@ import java.util.List;
 @Configuration
 public class SecurityConfig {
 
+    private static final String[] PUBLIC_ENDPOINTS = {
+            "/error",
+            "/health",
+            "/swagger-ui/**",
+            "/swagger-ui.html",
+            "/v3/api-docs/**",
+            "/v3/api-docs.yaml",
+            "/user/health",
+            "/user/actuator/health",
+            "/user/swagger-ui/**",
+            "/user/swagger-ui.html",
+            "/user/v3/api-docs/**",
+            "/item/health",
+            "/item/actuator/health",
+            "/item/swagger-ui/**",
+            "/item/swagger-ui.html",
+            "/item/v3/api-docs/**",
+            "/inventory/health",
+            "/inventory/actuator/health",
+            "/inventory/swagger-ui/**",
+            "/inventory/swagger-ui.html",
+            "/inventory/v3/api-docs/**",
+            "/procurement/health",
+            "/procurement/actuator/health",
+            "/procurement/swagger-ui/**",
+            "/procurement/swagger-ui.html",
+            "/procurement/v3/api-docs/**",
+            "/sales/health",
+            "/sales/actuator/health",
+            "/sales/swagger-ui/**",
+            "/sales/swagger-ui.html",
+            "/sales/v3/api-docs/**"
+    };
+
     private final FrontendProperties frontendProperties;
 
     public SecurityConfig(FrontendProperties frontendProperties) {
@@ -115,26 +149,12 @@ public class SecurityConfig {
 
         return http
                 .authorizeHttpRequests(auth -> auth
-                                // 아래는 로그인 없이 허용
-                                .requestMatchers(
-//                                "/api/auth/me",
-//                                "/error",
-//                                "/api/v1/items/**",
-//                                "/api/v2/items/**",
-//                                "/swagger-ui/**",
-//                                "/swagger-ui.html",
-//                                "/v3/api-docs/**",
-//                                "/item/swagger-ui/**",
-//                                "/item/v3/api-docs/**",
-//                                "/item/api/v1/items/**",
-//                                "/item/api/v2/items/**",
-//                                "/health"
-                                        "/**"
-                                ).permitAll()
-                                // 나머지는 전부 로그인을 거쳐야함
-                                // /api/csrf는 로그인 후 호출한다.
-                                // anyRequest().authenticated()에 의해 인증된 사용자만 CSRF 토큰을 받을 수 있다.
-                                .anyRequest().authenticated()
+                        // 아래는 로그인 없이 허용
+                        .requestMatchers(PUBLIC_ENDPOINTS).permitAll()
+                        // 나머지는 전부 로그인을 거쳐야함
+                        // /api/csrf는 로그인 후 호출한다.
+                        // anyRequest().authenticated()에 의해 인증된 사용자만 CSRF 토큰을 받을 수 있다.
+                        .anyRequest().authenticated()
                 )
                 // Keycloak을 이용하는데,
                 // Spring 서버가 OAuth2/OIDC Client가 돼서,

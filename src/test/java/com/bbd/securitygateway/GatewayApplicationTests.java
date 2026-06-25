@@ -16,7 +16,15 @@ import org.springframework.security.oauth2.jwt.JwtDecoder;
 
 import java.time.Instant;
 
-@SpringBootTest(properties = "security-gateway.frontend.base-url=http://frontend.test:3000")
+@SpringBootTest(properties = {
+		"security-gateway.frontend.base-url=http://frontend.test:3000",
+		"USER_SERVICE_URI=http://localhost:18081",
+		"ITEM_SERVICE_URI=http://localhost:18082",
+		"INVENTORY_SERVICE_URI=http://localhost:18083",
+		"PROCUREMENT_SERVICE_URI=http://localhost:18084",
+		"SALES_SERVICE_URI=http://localhost:18085",
+		"COOKIE_SECURE=false"
+})
 @Import(TestSessionRepositoryConfig.class)
 class GatewayApplicationTests {
 
