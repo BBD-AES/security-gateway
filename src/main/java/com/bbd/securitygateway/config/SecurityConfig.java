@@ -9,13 +9,17 @@ import com.bbd.securitygateway.auth.adapter.in.security.OidcUserSubjectExtractor
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.annotation.Order;
+import org.springframework.security.authorization.AuthorizationDecision;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.annotation.web.configurers.SessionManagementConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.core.Authentication;
 import org.springframework.security.core.session.SessionRegistry;
 import org.springframework.security.oauth2.client.web.OAuth2AuthorizationRequestResolver;
+import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
 import org.springframework.security.oauth2.server.resource.web.authentication.BearerTokenAuthenticationFilter;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.logout.LogoutSuccessHandler;
@@ -33,6 +37,10 @@ import java.util.List;
 // Spring Bean 설정 클래스
 @Configuration
 public class SecurityConfig {
+
+    private static final String SCIM_PATH_PATTERN = "/user/scim/**";
+    private static final String AUTHORIZED_PARTY_CLAIM = "azp";
+    private static final String CLIENT_ID_CLAIM = "client_id";
 
     private static final String[] PUBLIC_ENDPOINTS = {
             "/error",
@@ -69,9 +77,11 @@ public class SecurityConfig {
     };
 
     private final FrontendProperties frontendProperties;
+    private final ScimSecurityProperties scimSecurityProperties;
 
-    public SecurityConfig(FrontendProperties frontendProperties) {
+    public SecurityConfig(FrontendProperties frontendProperties, ScimSecurityProperties scimSecurityProperties) {
         this.frontendProperties = frontendProperties;
+        this.scimSecurityProperties = scimSecurityProperties;
     }
 
     /*
@@ -90,9 +100,41 @@ public class SecurityConfig {
     - 앱/토큰 요청: Authorization 헤더 기반 stateless 인증이므로 CSRF 비활성화
     */
 
-    // 모바일 전용 + swagger
+    // SCIM M2M 전용
     @Bean
     @Order(1)
+    public SecurityFilterChain scimSecurityFilterChain(
+            HttpSecurity http,
+            CorsConfigurationSource corsConfigurationSource,
+            ApiExceptionAuthenticationEntryPoint authenticationEntryPoint,
+            ApiExceptionAccessDeniedHandler accessDeniedHandler
+    ) throws Exception {
+        return http
+                // SCIM은 브라우저 로그인 세션이 아니라 service client Bearer 토큰으로만 호출한다.
+                .securityMatcher(SCIM_PATH_PATTERN)
+                .authorizeHttpRequests(auth -> auth
+                        .anyRequest().access((authentication, context) ->
+                                new AuthorizationDecision(isAllowedScimClient(authentication.get()))
+                        )
+                )
+                .cors(cors -> cors.configurationSource(corsConfigurationSource))
+                .csrf(AbstractHttpConfigurer::disable)
+                .sessionManagement(session -> session
+                        .sessionCreationPolicy(SessionCreationPolicy.STATELESS)
+                )
+                .exceptionHandling(exceptionHandling -> exceptionHandling
+                        .authenticationEntryPoint(authenticationEntryPoint)
+                        .accessDeniedHandler(accessDeniedHandler)
+                )
+                .oauth2ResourceServer(resourceServer -> resourceServer
+                        .jwt(Customizer.withDefaults())
+                )
+                .build();
+    }
+
+    // 모바일 전용 + swagger
+    @Bean
+    @Order(2)
     public SecurityFilterChain bearerTokenSecurityFilterChain(
             HttpSecurity http,
             CorsConfigurationSource corsConfigurationSource,
@@ -141,7 +183,7 @@ public class SecurityConfig {
 
     // 웹 전용
     @Bean
-    @Order(2)
+    @Order(3)
     public SecurityFilterChain webSecurityFilterChain(HttpSecurity http,
                                                       LogoutSuccessHandler oidcLogoutSuccessHandler,
                                                       OidcLoginSuccessHandler oidcLoginSuccessHandler,
@@ -220,6 +262,22 @@ public class SecurityConfig {
                         .sessionRegistry(sessionRegistry)
                 )
                 .build();
+    }
+
+    private boolean isAllowedScimClient(Authentication authentication) {
+        if (!(authentication instanceof JwtAuthenticationToken jwtAuthentication) || !authentication.isAuthenticated()) {
+            return false;
+        }
+
+        Jwt jwt = jwtAuthentication.getToken();
+        String authorizedParty = jwt.getClaimAsString(AUTHORIZED_PARTY_CLAIM);
+        String clientId = jwt.getClaimAsString(CLIENT_ID_CLAIM);
+
+        return scimSecurityProperties.getAllowedClientIds().stream()
+                .filter(allowedClientId -> allowedClientId != null && !allowedClientId.isBlank())
+                .anyMatch(allowedClientId ->
+                        allowedClientId.equals(authorizedParty) || allowedClientId.equals(clientId)
+                );
     }
 
 

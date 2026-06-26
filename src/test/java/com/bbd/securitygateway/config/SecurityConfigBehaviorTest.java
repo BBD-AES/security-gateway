@@ -137,6 +137,22 @@ class SecurityConfigBehaviorTest {
     }
 
     @Test
+    void scim_요청은_bearer_토큰이_없어도_웹_로그인으로_리다이렉트하지_않고_401로_응답한다() throws Exception {
+        mockMvc.perform(get("/user/scim/v2/Users"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(header().string(HttpHeaders.WWW_AUTHENTICATE, containsString("Bearer")))
+                .andExpect(jsonPath("$.title").value("AUTH001"));
+    }
+
+    @Test
+    void scim_요청은_허용된_service_client_토큰만_허용한다() throws Exception {
+        mockMvc.perform(get("/user/scim/v2/Users")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer valid-mobile-token"))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.title").value("AUTH002"));
+    }
+
+    @Test
     void 허용된_origin의_cors_preflight를_처리한다() throws Exception {
         mockMvc.perform(options("/api/auth/me")
                         .header(HttpHeaders.ORIGIN, FRONTEND_ORIGIN)
