@@ -23,7 +23,7 @@ public enum ErrorCode {
     AUTH_MOBILE_SESSION_REPLACED(
             HttpStatus.UNAUTHORIZED,
             "AUTH003",
-            "이미 다른 기기에서 로그인 중입니다."
+            "이미 다른 기기에서 로그인 중입니다. 기존 기기에서 로그아웃하거나 관리자에게 문의하세요."
     ),
 
     INTERNAL_ERROR(
