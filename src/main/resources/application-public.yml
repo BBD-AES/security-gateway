@@ -23,7 +23,7 @@ security-gateway:
     key-prefix: ${MOBILE_SESSION_KEY_PREFIX:security-gateway:mobile-session}
     ttl: ${MOBILE_SESSION_TTL:7d}
   scim:
-    allowed-client-ids: ${SCIM_ALLOWED_CLIENT_IDS:admin-be-scim-client}
+    allowed-client-ids: ${SCIM_ALLOWED_CLIENT_IDS:user-admin-console-admin}
 
 spring:
   config:

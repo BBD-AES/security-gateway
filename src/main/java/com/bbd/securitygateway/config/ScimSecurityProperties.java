@@ -10,7 +10,7 @@ import java.util.List;
 @ConfigurationProperties(prefix = "security-gateway.scim")
 public class ScimSecurityProperties {
 
-    private List<String> allowedClientIds = new ArrayList<>(List.of("admin-be-scim-client"));
+    private List<String> allowedClientIds = new ArrayList<>(List.of("user-admin-console-admin"));
 
     public List<String> getAllowedClientIds() {
         return allowedClientIds;
