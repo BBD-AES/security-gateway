@@ -84,6 +84,11 @@ spring:
       server:
         webmvc:
           routes:
+            - id: user-scim-service
+              uri: ${USER_SERVICE_URI:http://bbd-user:8080}
+              predicates:
+                - Path=/user/scim/**
+
             - id: user-service
               uri: ${USER_SERVICE_URI:http://bbd-user:8080}
               predicates:
