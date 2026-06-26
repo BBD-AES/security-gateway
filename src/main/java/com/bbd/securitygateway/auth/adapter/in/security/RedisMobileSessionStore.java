@@ -18,10 +18,9 @@ import java.util.List;
  * 비원자 GET→비교→SET 은 동시 로그인 시 둘 다 current==null 을 보고 양쪽 다 통과할 수 있어(레이스),
  * 단일 기기 보장이 깨졌다. 원자 스크립트로 GET·비교·SET 을 한 호출에 묶어 이를 제거한다.
  *
- * 점유 규칙(다른 sid): auth_time 이 <b>엄격히 더 최신(&gt;)</b>일 때만 점유한다(기존 &gt;= 는 같은 초 두 로그인이
- * 서로 덮어쓰며 둘 다 통과하는 핑퐁을 유발). 같은 sid 는 항상 통과(토큰 refresh = TTL 갱신).
- * 트레이드오프: Keycloak auth_time 이 초 단위라, 같은 초에 로그인한 신규 기기는 1회 차단된다(1초 뒤 재로그인으로 점유).
- * 단일 기기(둘 다 유효 방지)를 우선한 선택.
+ * 점유 규칙(다른 sid): 이미 등록된 모바일 세션이 있으면 신규 sid 를 차단한다.
+ * 같은 sid 는 항상 통과(토큰 refresh = TTL 갱신)하고, 로그아웃으로 슬롯이 비워진 뒤에만 다른 기기가 등록된다.
+ * 즉 "신규 로그인으로 기존 기기 끊기"가 아니라 "기존 기기가 살아 있으면 신규 기기 차단" 정책이다.
  */
 @Component
 @ConditionalOnBean(StringRedisTemplate.class)
@@ -29,11 +28,10 @@ import java.util.List;
 public class RedisMobileSessionStore implements MobileSessionStore {
 
     // KEYS[1]=세션키, ARGV[1]=sid, ARGV[2]=authEpochSeconds, ARGV[3]=ttlSeconds.
-    // 반환 1=점유(SET 함, 통과) / 0=차단(다른 기기가 같거나 더 최신).
+    // 반환 1=점유(SET 함, 통과) / 0=차단(이미 다른 기기가 점유 중).
     private static final RedisScript<Long> REGISTER_OR_VALIDATE = new DefaultRedisScript<>("""
             local cur = redis.call('GET', KEYS[1])
             local sid = ARGV[1]
-            local auth = tonumber(ARGV[2])
             local ttl = tonumber(ARGV[3])
             local take = false
             if cur == false then
@@ -44,10 +42,7 @@ public class RedisMobileSessionStore implements MobileSessionStore {
                     take = true
                 else
                     local curSid = string.sub(cur, 1, i - 1)
-                    local curAuth = tonumber(string.sub(cur, i + 1))
                     if curSid == sid then
-                        take = true
-                    elseif curAuth == nil or auth > curAuth then
                         take = true
                     end
                 end

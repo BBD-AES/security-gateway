@@ -100,19 +100,19 @@ class SecurityConfigBehaviorTest {
     }
 
     @Test
-    void 새_모바일_세션이_등록되면_기존_모바일_세션은_401로_응답한다() throws Exception {
+    void 기존_모바일_세션이_있으면_새_모바일_세션은_401로_응답한다() throws Exception {
         mockMvc.perform(get("/api/auth/me")
                         .header(HttpHeaders.AUTHORIZATION, "Bearer mobile-session-old"))
                 .andExpect(status().isOk());
 
         mockMvc.perform(get("/api/auth/me")
                         .header(HttpHeaders.AUTHORIZATION, "Bearer mobile-session-new"))
-                .andExpect(status().isOk());
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.title").value("AUTH003"));
 
         mockMvc.perform(get("/api/auth/me")
                         .header(HttpHeaders.AUTHORIZATION, "Bearer mobile-session-old"))
-                .andExpect(status().isUnauthorized())
-                .andExpect(jsonPath("$.title").value("AUTH003"));
+                .andExpect(status().isOk());
     }
 
     @Test
@@ -275,8 +275,7 @@ class SecurityConfigBehaviorTest {
                 MobileSessionRecord incoming = new MobileSessionRecord(sessionId, authenticatedAt);
                 MobileSessionRecord current = sessions.get(userSub);
 
-                if (current == null || current.sessionId().equals(sessionId)
-                        || !incoming.authenticatedAt().isBefore(current.authenticatedAt())) {
+                if (current == null || current.sessionId().equals(sessionId)) {
                     sessions.put(userSub, incoming);
                     return true;
                 }
